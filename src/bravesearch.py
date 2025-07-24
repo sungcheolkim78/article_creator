@@ -12,6 +12,7 @@ class SearchResult:
     title: str
     url: str
     snippet: str
+    extra_snippets: List[str]
     published_time: Optional[str] = None
 
     def __str__(self):
@@ -87,6 +88,7 @@ class BraveSearchTool(dspy.Retrieve):
                         url=item.get("url", ""),
                         snippet=item.get("description", ""),
                         published_time=item.get("published", None),
+                        extra_snippets=item.get("extra_snippets", []),
                     )
                     results.append(result)
 
