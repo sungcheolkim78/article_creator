@@ -1,59 +1,47 @@
-[tool.poetry]
-name = "example_template"
+[project]
+name = "article-creator"
 version = "0.1.0"
-description = "This is a template example for python packages"
-authors = ["sungcheol <sungcheol.kim78@gmail.com>"]
-
-[tool.poetry.dependencies]
-python = "^3.8"
-
-[tool.poetry.group.dev.dependencies]
-ruff = "^0.3"
-pytest = "^7.4.2"
-
-[build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
-
-[tool.black]
-line-length = 88
-target-version = ["py38"]
-exclude = '''
-/(
-    \.git
-  | \.venv
-  | \.direnv
-  | _build
-  | build
-  | dist
-  | \.env
-  | \.vscode
-  | \.cache
-  | github
-  | __pycache__
-  | .cloudignore
-)/
-'''
-
-[tool.isort]
-py_version = "38"
-line_length = 80
-lines_after_imports = 2
-lines_between_sections = 1
-multi_line_output = 3
-force_grid_wrap = 0
-include_trailing_comma = "true"
-combine_as_imports = "true"
-use_parentheses = "true"
-skip = ["./docs", ".direnv"]
-skip_glob = ["*/__init__.py"]
-skip_gitignore = "true"
-sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
-default_section = "THIRDPARTY"
-
-[tool.pytest.ini_options]
-minversion = "6.1"
-addopts = "--cov"
-testpaths = [
-    "tests_unit",
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11.9"
+dependencies = [
+    "dspy>=2.6.27",
+    "ruff>=0.12.4",
 ]
+
+[tool.ruff]
+# 지원할 Python 버전
+target-version = "py313"
+
+# 적용할 규칙들 (select와 extend-select는 병행 가능)
+select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "SIM", "TID", "TCH", "RUF"]
+extend-select = ["ANN", "T20"]
+
+# 무시할 규칙들
+ignore = ["E501"]  # E501: line too long (보통 formatter가 처리하므로 무시)
+
+# 파일 무시 설정
+exclude = [
+  ".venv",
+  "__pycache__",
+  "migrations",
+  "tests/data",
+]
+
+# max line length
+line-length = 88  # black과 일치시키기 위함
+
+# import 정렬 자동 적용
+[tool.ruff.isort]
+known-first-party = ["myproject"]
+section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]
+force-single-line = false
+combine-as-imports = true
+
+# docstring 규칙
+[tool.ruff.pydocstyle]
+convention = "google"  # 또는 "numpy", "pep257"
+
+# 형 주석 관련 설정 (예: mypy 스타일)
+[tool.ruff.mccabe]
+max-complexity = 10
