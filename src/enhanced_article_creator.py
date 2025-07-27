@@ -9,6 +9,16 @@ from bravesearch import OptimizedBraveSearch
 from react_module import ArticleReACTAgent, ReACTAgent
 from research_assistant import ResearchAssistant
 from typing import Dict, Any, List, Optional
+import logging
+
+logging.basicConfig(
+    level=logging.INFO, 
+    format='%(asctime)s|%(name)s|%(levelname)s|%(message)s')
+logger = logging.getLogger('enhanced_article_creator')
+
+logging.getLogger('LiteLLM').setLevel(logging.WARNING)
+logging.getLogger('httpx').setLevel(logging.WARNING)
+
 
 load_dotenv()
 
@@ -69,8 +79,8 @@ class EnhancedDraftArticle(dspy.Module):
         """
         Generate a comprehensive article with web search and ReACT integration.
         """
-        print(f"Generating enhanced article for topic: {topic}")
-        print(f"Using ReACT agent: {use_react}")
+        logger.info(f"Generating enhanced article for topic: {topic}")
+        logger.info(f"Using ReACT agent: {use_react}")
 
         # Phase 1: Research and information gathering
         if use_react:
@@ -80,23 +90,23 @@ class EnhancedDraftArticle(dspy.Module):
             # Fallback to direct research
             research_summary = self._conduct_basic_research(topic)
 
-        print(f"Research completed. Summary length: {len(research_summary)} characters")
+        logger.info(f"💊 Research completed. Summary length: {len(research_summary)} characters")
 
         # Phase 2: Create research-enhanced outline
         outline = self.build_outline(
             topic=topic,
             research_findings=research_summary,
-            target_audience="general audience"
+            target_audience="ML/AI/data scientists"
         )
 
-        print(f"Outline created with {len(outline.section_subheadings)} sections")
+        logger.info(f"🔍 Outline created with {len(outline.section_subheadings)} sections")
 
         # Phase 3: Generate sections with research integration
         sections_en = []
         sections_other = []
 
         for heading, subheadings in outline.section_subheadings.items():
-            print(f"Generating section: {heading}")
+            logger.info(f"Generating section: {heading}")
             
             # Get specific research for this section
             section_research = self._get_section_research(topic, heading, research_summary)
@@ -180,7 +190,7 @@ class EnhancedDraftArticle(dspy.Module):
         try:
             # Perform multiple targeted searches
             search_queries = [
-                f"{topic} latest developments 2024",
+                f"{topic} latest developments 2024-2025",
                 f"{topic} current trends analysis",
                 f"{topic} expert opinions research"
             ]
@@ -211,7 +221,7 @@ class EnhancedDraftArticle(dspy.Module):
             return filtered.relevant_research
         except Exception:
             # Fallback: return a portion of the research summary
-            return research_summary[:1000] + "..." if len(research_summary) > 1000 else research_summary
+            return research_summary[:1500] + "..." if len(research_summary) > 1500 else research_summary
 
     def _get_section_sources(self, section_heading: str, key_sources: List[str]) -> str:
         """Get relevant sources for a section."""
@@ -244,7 +254,7 @@ class WebSearchArticleCreator(dspy.Module):
     
     def forward(self, topic: str, language: str = "Korean") -> Dict[str, Any]:
         """Generate article with focused web search integration."""
-        print(f"Web search-enhanced article generation for: {topic}")
+        logger.info(f"Web search-enhanced article generation for: {topic}")
         
         # Step 1: Research current information
         research_result = self.research_assistant.research_question(
@@ -311,8 +321,8 @@ def main(topic, language, output_dir, mode, use_react):
     # Initialize Brave Search
     brave_api_key = os.getenv("BRAVE_SEARCH_API_KEY")
     if not brave_api_key:
-        print("Warning: BRAVE_SEARCH_API_KEY not found. Using limited functionality.")
-        print("Please set BRAVE_SEARCH_API_KEY environment variable for full web search capabilities.")
+        logger.warning("Warning: BRAVE_SEARCH_API_KEY not found. Using limited functionality.")
+        logger.warning("Please set BRAVE_SEARCH_API_KEY environment variable for full web search capabilities.")
         return
     
     search_tool = OptimizedBraveSearch(api_key=brave_api_key, k=5, source="web")
@@ -327,8 +337,8 @@ def main(topic, language, output_dir, mode, use_react):
     elif mode == "react":
         react_agent = ArticleReACTAgent(search_tool)
         react_results = react_agent.generate_article_with_research(topic)
-        print("ReACT research completed. Use 'enhanced' mode to generate full article.")
-        print(f"Research summary: {react_results}")
+        logger.info("ReACT research completed. Use 'enhanced' mode to generate full article.")
+        logger.info(f"Research summary: {react_results}")
         return
 
     # Save articles
@@ -369,12 +379,12 @@ def main(topic, language, output_dir, mode, use_react):
             f.write(f"# Research Summary: {prediction.title}\n\n")
             f.write(prediction.research_summary)
 
-    print(f"Enhanced article saved to {output_dir}")
-    print(f"Files created:")
-    print(f"  - {topic_slug}-{lang_slug}.md (translated)")
-    print(f"  - {topic_slug}-en.md (English)")
+    logger.info(f"Enhanced article saved to {output_dir}")
+    logger.info(f"Files created:")
+    logger.info(f"  - {topic_slug}-{lang_slug}.md (translated)")
+    logger.info(f"  - {topic_slug}-en.md (English)")
     if hasattr(prediction, 'research_summary'):
-        print(f"  - {topic_slug}-research.md (research summary)")
+        logger.info(f"  - {topic_slug}-research.md (research summary)")
 
 
 if __name__ == "__main__":

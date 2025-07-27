@@ -3,6 +3,13 @@ import requests
 import json
 from typing import List, Dict, Optional, Any
 from dataclasses import dataclass
+from ratelimit import limits, sleep_and_retry
+import logging
+
+logging.basicConfig(
+    level=logging.INFO, 
+    format='%(asctime)s|%(name)s|%(levelname)s|%(message)s')
+logger = logging.getLogger('brave_search')
 
 
 @dataclass
@@ -50,6 +57,8 @@ class BraveSearchTool(dspy.Retrieve):
         search_results = self.search(query, k or self.k)
         return [result.snippet for result in search_results]
 
+    @sleep_and_retry
+    @limits(calls=1, period=1)
     def search(self, query: str, k: Optional[int] = None) -> List[SearchResult]:
         """
         Perform search and return structured results
@@ -95,10 +104,10 @@ class BraveSearchTool(dspy.Retrieve):
             return results[:k]
 
         except requests.exceptions.RequestException as e:
-            print(f"Error making request to Brave Search: {e}")
+            logger.error(f"Error making request to Brave Search: {e}")
             return []
         except json.JSONDecodeError as e:
-            print(f"Error parsing JSON response: {e}")
+            logger.error(f"Error parsing JSON response: {e}")
             return []
 
 
@@ -111,7 +120,7 @@ class OptimizedBraveSearch(BraveSearchTool):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.query_optimizer = dspy.ChainOfThought(
-            "original_query -> optimized_search_query, explanation"
+            "original_query -> optimized_search_query"
         )
 
     def optimized_search(
@@ -124,9 +133,9 @@ class OptimizedBraveSearch(BraveSearchTool):
         optimization = self.query_optimizer(original_query=query)
         optimized_query = optimization.optimized_search_query
 
-        print(f"Original query: {query}")
-        print(f"Optimized query: {optimized_query}")
-        print(f"Optimization reasoning: {optimization.explanation}")
+        logger.debug(f"... Original query: {query}")
+        logger.debug(f"... Optimized query: {optimized_query}")
+        logger.debug(f"... Optimization reasoning: {optimization.reasoning}")
 
         # Perform search with optimized query
         return self.search(optimized_query, k)
