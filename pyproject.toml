@@ -11,6 +11,8 @@ dependencies = [
     "click>=8.1.0",
     "python-dotenv>=1.0.0",
     "ratelimit>=2.2.1",
+    "duckduckgo-search>=8.1.1",
+    "ddgs>=9.4.3",
 ]
 
 [tool.ruff]
@@ -18,11 +20,11 @@ dependencies = [
 target-version = "py313"
 
 # 적용할 규칙들 (select와 extend-select는 병행 가능)
-select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "SIM", "TID", "TCH", "RUF"]
-extend-select = ["ANN", "T20"]
+lint.select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "SIM", "TID", "TCH", "RUF"]
+lint.extend-select = ["ANN", "T20"]
 
 # 무시할 규칙들
-ignore = ["E501"]  # E501: line too long (보통 formatter가 처리하므로 무시)
+lint.ignore = ["E501"]  # E501: line too long (보통 formatter가 처리하므로 무시)
 
 # 파일 무시 설정
 exclude = [
@@ -36,16 +38,16 @@ exclude = [
 line-length = 88  # black과 일치시키기 위함
 
 # import 정렬 자동 적용
-[tool.ruff.isort]
+[lint.isort]
 known-first-party = ["myproject"]
 section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]
 force-single-line = false
 combine-as-imports = true
 
 # docstring 규칙
-[tool.ruff.pydocstyle]
+[lint.pydocstyle]
 convention = "google"  # 또는 "numpy", "pep257"
 
 # 형 주석 관련 설정 (예: mypy 스타일)
-[tool.ruff.mccabe]
+[lint.mccabe]
 max-complexity = 10

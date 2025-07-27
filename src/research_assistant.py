@@ -42,7 +42,8 @@ class ResearchAssistant(dspy.Module):
         formatted_results = "\n\n".join(
             [
                 f"Source {i + 1}: {result.title}\n{result.snippet}\n{extra_snippets}\nURL: {result.url}"
-                if (extra_snippets := "\n".join(result.extra_snippets)) else f"Source {i + 1}: {result.title}\n{result.snippet}\nURL: {result.url}"
+                if (extra_snippets := "\n".join(result.extra_snippets))
+                else f"Source {i + 1}: {result.title}\n{result.snippet}\nURL: {result.url}"
                 for i, result in enumerate(search_results)
             ]
         )
@@ -177,10 +178,30 @@ def do_multi_perspective_research(
 
 
 @click.command()
-@click.option("--question", type=str, help="The question to research", default="What are the latest developments in quantum computing in 2024?")
-@click.option("--claim", type=str, help="The claim to fact-check", default="The James Webb Space Telescope discovered water on an exoplanet in 2024")
-@click.option("--topic", type=str, help="The topic to research from multiple perspectives", default="artificial intelligence regulation")
-@click.option("--perspectives", type=str, help="The perspectives to research from", default="industry, academic, policy maker, privacy advocate")
+@click.option(
+    "--question",
+    type=str,
+    help="The question to research",
+    default="What are the latest developments in quantum computing in 2024?",
+)
+@click.option(
+    "--claim",
+    type=str,
+    help="The claim to fact-check",
+    default="The James Webb Space Telescope discovered water on an exoplanet in 2024",
+)
+@click.option(
+    "--topic",
+    type=str,
+    help="The topic to research from multiple perspectives",
+    default="artificial intelligence regulation",
+)
+@click.option(
+    "--perspectives",
+    type=str,
+    help="The perspectives to research from",
+    default="industry, academic, policy maker, privacy advocate",
+)
 @click.option("--num_sources", type=int, default=5, help="The number of sources to use")
 # Example usage and configuration
 def main(question, claim, topic, perspectives, num_sources):

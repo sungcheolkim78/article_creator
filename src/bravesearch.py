@@ -7,9 +7,9 @@ from ratelimit import limits, sleep_and_retry
 import logging
 
 logging.basicConfig(
-    level=logging.INFO, 
-    format='%(asctime)s|%(name)s|%(levelname)s|%(message)s')
-logger = logging.getLogger('brave_search')
+    level=logging.INFO, format="%(asctime)s|%(name)s|%(levelname)s|%(message)s"
+)
+logger = logging.getLogger("brave_search")
 
 
 @dataclass
