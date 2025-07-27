@@ -355,8 +355,8 @@ class WebSearchArticleCreator(dspy.Module):
     "--use_react", is_flag=True, default=True, help="Use ReACT agent for research"
 )
 @click.option("--llm_model", type=str, default="openai/gpt-4o-mini")
-@click.option("--search_tool", type=str, default="brave")
-def main(topic, language, output_dir, mode, use_react, llm_model, search_tool):
+@click.option("--search_tool_name", type=str, default="ddg")
+def main(topic, language, output_dir, mode, use_react, llm_model, search_tool_name):
     """Enhanced article creator with web search and ReACT integration."""
 
     # Setup
@@ -373,12 +373,12 @@ def main(topic, language, output_dir, mode, use_react, llm_model, search_tool):
         )
         return
 
-    if search_tool == "brave":
+    if search_tool_name == "brave":
         search_tool = OptimizedBraveSearch(api_key=brave_api_key, k=5, source="web")
-    elif search_tool == "ddg":
+    elif search_tool_name == "ddg":
         search_tool = OptimizedDDGSearch(k=5)
     else:
-        raise ValueError(f"Invalid search tool: {search_tool}")
+        raise ValueError(f"Invalid search tool: {search_tool_name}")
 
     # Choose article generator based on mode
     if mode == "enhanced":
@@ -412,7 +412,7 @@ def main(topic, language, output_dir, mode, use_react, llm_model, search_tool):
         mode=mode, 
         use_react=use_react, 
         llm_model=llm_model, 
-        search_tool=search_tool
+        search_tool_name=search_tool_name
     )
 
     # Save translated version
@@ -464,7 +464,7 @@ def main(topic, language, output_dir, mode, use_react, llm_model, search_tool):
 
 
 def create_click_options_table(topic: str, language: str, output_dir: str, mode: str, 
-                              use_react: bool, llm_model: str, search_tool: str) -> str:
+                              use_react: bool, llm_model: str, search_tool_name: str) -> str:
     """Create a markdown table with the click options used to generate the article."""
     
     generation_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -482,7 +482,7 @@ This article was generated using the following parameters:
 | **Generation Mode** | {mode} |
 | **ReACT Agent** | {'Enabled' if use_react else 'Disabled'} |
 | **LLM Model** | {llm_model} |
-| **Search Tool** | {search_tool} |
+| **Search Tool** | {search_tool_name} |
 | **Generated At** | {generation_time} |
 
 ### Command Used
@@ -494,7 +494,7 @@ python src/enhanced_article_creator.py \\
     --output_dir "{output_dir}" \\
     --mode {mode} \\
     --llm_model "{llm_model}" \\
-    --search_tool "{search_tool}" \\
+    --search_tool_name "{search_tool_name}" \\
     {"--use_react" if use_react else ""}
 ```
 """
