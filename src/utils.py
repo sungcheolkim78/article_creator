@@ -43,7 +43,7 @@ def llm_setup(model_name):
         options = {
             "temperature": 0.1,
             "top_p": 0.9,
-            "max_tokens": 5000,
+            "max_tokens": 8000,
         }
     else:
         raise ValueError(f"Invalid model name: {model_name}")
