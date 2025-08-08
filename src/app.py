@@ -17,10 +17,16 @@ from typing import Dict, Any, Optional
 # Add the src directory to the path
 sys.path.append(str(Path(__file__).parent))
 
-from enhanced_article_creator import EnhancedDraftArticle, WebSearchArticleCreator
-from bravesearch import OptimizedBraveSearch
-from ddgsearch import OptimizedDDGSearch
-from utils import llm_setup
+from utils.utils import (
+    generate_article, 
+    calculate_article_metrics, 
+    save_article_to_file, 
+    check_environment,
+    get_available_llm_models,
+    get_available_languages,
+    get_available_search_tools,
+    get_available_modes
+)
 
 # Page configuration
 st.set_page_config(
@@ -95,92 +101,23 @@ def initialize_session_state():
     if 'generation_params' not in st.session_state:
         st.session_state.generation_params = None
 
-def setup_search_tool(search_tool_name: str) -> Optional[Any]:
-    """Setup and return the search tool based on user selection."""
-    try:
-        if search_tool_name == "brave":
-            brave_api_key = os.getenv("BRAVE_SEARCH_API_KEY")
-            if not brave_api_key:
-                st.error("❌ BRAVE_SEARCH_API_KEY not found in environment variables.")
-                st.info("Please set BRAVE_SEARCH_API_KEY for Brave Search functionality.")
-                return None
-            return OptimizedBraveSearch(api_key=brave_api_key, k=5, source="web")
-        elif search_tool_name == "ddg":
-            return OptimizedDDGSearch(k=5)
-        else:
-            st.error(f"❌ Invalid search tool: {search_tool_name}")
-            return None
-    except Exception as e:
-        st.error(f"❌ Error setting up search tool: {str(e)}")
-        return None
-
-def generate_article(topic: str, language: str, mode: str, use_react: bool, 
-                    llm_model: str, search_tool_name: str) -> Optional[Dict[str, Any]]:
-    """Generate article using the enhanced article creator."""
-    
-    with st.spinner("🔄 Setting up LLM and search tools..."):
-        try:
-            # Setup LLM
-            llm_setup(llm_model)
-            
-            # Setup search tool
-            search_tool = setup_search_tool(search_tool_name)
-            if not search_tool:
-                return None
-                
-        except Exception as e:
-            st.error(f"❌ Error during setup: {str(e)}")
-            return None
-    
-    # Choose article generator based on mode
-    if mode == "enhanced":
-        with st.spinner("🔄 Initializing Enhanced Article Creator..."):
-            article_generator = EnhancedDraftArticle(search_tool)
-        
-        with st.spinner("🔄 Generating enhanced article with research and ReACT integration..."):
-            try:
-                prediction = article_generator.forward(
-                    topic=topic, language=language, use_react=use_react
-                )
-                return prediction
-            except Exception as e:
-                st.error(f"❌ Error generating enhanced article: {str(e)}")
-                return None
-                
-    elif mode == "websearch":
-        with st.spinner("🔄 Initializing Web Search Article Creator..."):
-            article_generator = WebSearchArticleCreator(search_tool)
-        
-        with st.spinner("🔄 Generating article with web search integration..."):
-            try:
-                prediction = article_generator.forward(topic=topic, language=language)
-                return prediction
-            except Exception as e:
-                st.error(f"❌ Error generating web search article: {str(e)}")
-                return None
-    else:
-        st.error(f"❌ Invalid mode: {mode}")
-        return None
-
 def display_article_metrics(article_data: Dict[str, Any]):
     """Display metrics about the generated article."""
+    metrics = calculate_article_metrics(article_data)
+    
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        st.metric("Title Length", len(article_data.get('title', '')))
+        st.metric("Title Length", metrics['title_length'])
     
     with col2:
-        sections_en = article_data.get('sections_en', [])
-        total_en_words = sum(len(section.split()) for section in sections_en)
-        st.metric("English Words", total_en_words)
+        st.metric("English Words", metrics['total_en_words'])
     
     with col3:
-        sections_other = article_data.get('sections_other', [])
-        total_other_words = sum(len(section.split()) for section in sections_other)
-        st.metric(f"{st.session_state.generation_params['language']} Words", total_other_words)
+        st.metric(f"{st.session_state.generation_params['language']} Words", metrics['total_other_words'])
     
     with col4:
-        st.metric("Sections", len(sections_en))
+        st.metric("Sections", metrics['sections_count'])
 
 def display_article_content(article_data: Dict[str, Any], language: str):
     """Display the article content in a formatted way."""
@@ -215,70 +152,31 @@ def display_article_content(article_data: Dict[str, Any], language: str):
         with st.expander("Research Summary", expanded=False):
             st.markdown(article_data.research_summary)
 
-def save_article_to_file(article_data: Dict[str, Any], topic: str, language: str, 
-                        output_dir: str, generation_params: Dict[str, Any]):
-    """Save the generated article to files."""
-    try:
-        output_path = Path(output_dir)
-        output_path.mkdir(parents=True, exist_ok=True)
-        
-        topic_slug = topic.lower().replace(" ", "-").replace(",", "")
-        lang_slug = language[:3].lower()
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        
-        # Save translated version
-        translated_file = output_path / f"{topic_slug}-{lang_slug}-{timestamp}.md"
-        with open(translated_file, "w", encoding="utf-8") as f:
-            f.write(f"# {article_data.get('title', 'Untitled Article')}\n\n")
-            for section in article_data.get('sections_other', []):
-                f.write(section)
-                f.write("\n\n")
-            
-            # Add sources
-            if hasattr(article_data, 'key_sources') and article_data.key_sources:
-                f.write("## Sources\n\n")
-                for source in article_data.key_sources:
-                    f.write(f"- {source}\n")
-        
-        # Save English version
-        english_file = output_path / f"{topic_slug}-en-{timestamp}.md"
-        with open(english_file, "w", encoding="utf-8") as f:
-            f.write(f"# {article_data.get('title', 'Untitled Article')}\n\n")
-            for section in article_data.get('sections_en', []):
-                f.write(section)
-                f.write("\n\n")
-            
-            # Add sources
-            if hasattr(article_data, 'key_sources') and article_data.key_sources:
-                f.write("## Sources\n\n")
-                for source in article_data.key_sources:
-                    f.write(f"- {source}\n")
-        
-        # Save research summary if available
-        if hasattr(article_data, 'research_summary') and article_data.research_summary:
-            research_file = output_path / f"{topic_slug}-research-{timestamp}.md"
-            with open(research_file, "w", encoding="utf-8") as f:
-                f.write(f"# Research Summary: {article_data.get('title', 'Untitled Article')}\n\n")
-                f.write(article_data.research_summary)
-                f.write("\n\n")
-                f.write("## Generation Parameters\n\n")
-                f.write(f"- Topic: {generation_params['topic']}\n")
-                f.write(f"- Language: {generation_params['language']}\n")
-                f.write(f"- Mode: {generation_params['mode']}\n")
-                f.write(f"- LLM Model: {generation_params['llm_model']}\n")
-                f.write(f"- Search Tool: {generation_params['search_tool_name']}\n")
-                f.write(f"- ReACT Agent: {'Enabled' if generation_params['use_react'] else 'Disabled'}\n")
-                f.write(f"- Generated At: {generation_params['generation_time']}\n")
-        
-        return {
-            'translated_file': str(translated_file),
-            'english_file': str(english_file),
-            'research_file': str(research_file) if hasattr(article_data, 'research_summary') else None
-        }
-        
-    except Exception as e:
-        st.error(f"❌ Error saving article to file: {str(e)}")
-        return None
+def check_environment_streamlit(llm_model: str, search_tool_name: str):
+    """Check if required environment variables are set and display results in Streamlit."""
+    env_check = check_environment(llm_model, search_tool_name)
+    
+    if "openai" in llm_model:
+        if env_check['llm_key_found']:
+            st.success("✅ OpenAI API Key found")
+        else:
+            st.error("❌ OpenAI API Key missing")
+    elif "anthropic" in llm_model:
+        if env_check['llm_key_found']:
+            st.success("✅ Anthropic API Key found")
+        else:
+            st.error("❌ Anthropic API Key missing")
+    elif "gemini" in llm_model:
+        if env_check['llm_key_found']:
+            st.success("✅ Gemini API Key found")
+        else:
+            st.error("❌ Gemini API Key missing")
+    
+    if search_tool_name == "brave":
+        if env_check['search_key_found']:
+            st.success("✅ Brave Search API Key found")
+        else:
+            st.warning("⚠️ Brave Search API Key missing")
 
 def main():
     """Main Streamlit application."""
@@ -304,7 +202,7 @@ def main():
         # Language selection
         language = st.selectbox(
             "Target Language",
-            ["Korean", "English", "Japanese", "Chinese", "Spanish", "French", "German"],
+            get_available_languages(),
             index=0,
             help="Select the language for the translated version"
         )
@@ -312,7 +210,7 @@ def main():
         # Generation mode
         mode = st.selectbox(
             "Generation Mode",
-            ["enhanced", "websearch"],
+            get_available_modes(),
             index=0,
             help="Enhanced: Full research with ReACT agent. Websearch: Focused web search integration."
         )
@@ -329,16 +227,7 @@ def main():
         # LLM model selection
         llm_model = st.selectbox(
             "LLM Model",
-            [
-                "openai/gpt-4o-mini",
-                "openai/gpt-4o",
-                "anthropic/claude-sonnet-4-20250514",
-                "anthropic/claude-3-7-sonnet-20250219",
-                "anthropic/claude-3-5-haiku-20241022",
-                "gemini/gemini-2.5-flash-lite",
-                "gemini/gemini-2.5-flash",
-                "gemini/gemini-2.5-pro"
-            ],
+            get_available_llm_models(),
             index=0,
             help="Select the language model for article generation"
         )
@@ -346,7 +235,7 @@ def main():
         # Search tool selection
         search_tool_name = st.selectbox(
             "Search Tool",
-            ["ddg", "brave"],
+            get_available_search_tools(),
             index=0,
             help="DuckDuckGo (free) or Brave Search (requires API key)"
         )
@@ -361,34 +250,7 @@ def main():
         # Environment info
         st.markdown("---")
         st.markdown("### 🔑 Environment Check")
-        
-        # Check API keys
-        openai_key = os.getenv("OPENAI_API_KEY")
-        anthropic_key = os.getenv("ANTHROPIC_API_KEY")
-        gemini_key = os.getenv("GEMINI_API_KEY")
-        brave_key = os.getenv("BRAVE_SEARCH_API_KEY")
-        
-        if "openai" in llm_model:
-            if openai_key:
-                st.success("✅ OpenAI API Key found")
-            else:
-                st.error("❌ OpenAI API Key missing")
-        elif "anthropic" in llm_model:
-            if anthropic_key:
-                st.success("✅ Anthropic API Key found")
-            else:
-                st.error("❌ Anthropic API Key missing")
-        elif "gemini" in llm_model:
-            if gemini_key:
-                st.success("✅ Gemini API Key found")
-            else:
-                st.error("❌ Gemini API Key missing")
-        
-        if search_tool_name == "brave":
-            if brave_key:
-                st.success("✅ Brave Search API Key found")
-            else:
-                st.warning("⚠️ Brave Search API Key missing")
+        check_environment_streamlit(llm_model, search_tool_name)
     
     # Main content area
     tab1, tab2, tab3 = st.tabs(["🚀 Article Generation", "📖 Article Review", "💾 Save & Export"])

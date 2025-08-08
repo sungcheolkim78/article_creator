@@ -1,11 +1,9 @@
-from pathlib import Path
 import dspy
-import click
-import os
-from dotenv import load_dotenv
-from utils import Translator, llm_setup
+from utils.signatures import Translator
+import logging
 
-load_dotenv()
+logger = logging.getLogger("article_creator")
+
 
 
 class Outline(dspy.Signature):
@@ -28,8 +26,8 @@ class DraftSection(dspy.Signature):
     content: str = dspy.OutputField(desc="markdown-formatted section")
 
 
-class DraftArticle(dspy.Module):
-    """Draft an article based on an outline."""
+class SimpleArticleCreator(dspy.Module):
+    """Create an article based on an outline."""
 
     def __init__(self):
         self.build_outline = dspy.ChainOfThought(Outline)
@@ -37,11 +35,11 @@ class DraftArticle(dspy.Module):
         self.translate = dspy.Predict(Translator)
 
     def forward(self, topic: str, language: str):
-        print(f"Drafting article for topic: {topic}")
+        print(f"Creating article for topic: {topic}")
 
         outline = self.build_outline(topic=topic)
         sections_en = []
-        sections_other = []
+        sections_translated = []
         print(f"Language: {language}")
         print(f"Outline: {len(outline.section_subheadings)} sections")
 
@@ -61,41 +59,10 @@ class DraftArticle(dspy.Module):
             section_other = self.translate(text=section_en, language=language)
 
             sections_en.append(section_en)
-            sections_other.append(section_other.translated_content)
+            sections_translated.append(section_other.translated_content)
 
         return dspy.Prediction(
-            title=outline.title, sections_en=sections_en, sections_other=sections_other
+            title=outline.title, 
+            sections_en=sections_en, 
+            sections_translated=sections_translated
         )
-
-
-@click.command()
-@click.option("--topic", type=str, default="The impact of AI on jobs")
-@click.option("--language", type=str, default="Korean")
-@click.option("--output_dir", type=str, default="data/articles")
-def main(topic, language, output_dir):
-    llm_setup("openai/gpt-4o-mini")
-    article = DraftArticle()
-    prediction = article.forward(topic=topic, language=language)
-
-    output_dir = Path(output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
-    topic_slug = topic.lower().replace(" ", "-")
-    lang_slug = language[:3].lower()
-
-    with open(output_dir / f"{topic_slug}-{lang_slug}.md", "w") as f:
-        f.write(f"# {prediction.title}\n")
-        for section in prediction.sections_other:
-            f.write(section)
-            f.write("\n")
-
-    with open(output_dir / f"{topic_slug}-en.md", "w") as f:
-        f.write(f"# {prediction.title}\n")
-        for section in prediction.sections_en:
-            f.write(section)
-            f.write("\n")
-
-    print(f"Article saved to {output_dir}")
-
-
-if __name__ == "__main__":
-    main()

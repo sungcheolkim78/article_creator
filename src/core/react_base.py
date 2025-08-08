@@ -1,282 +1,28 @@
 import dspy
-from typing import List, Dict, Any, Optional
-from bravesearch import OptimizedBraveSearch
-from research_assistant import ResearchAssistant
 import json
-from datetime import datetime
-import hashlib
 import logging
 import click
+from datetime import datetime
+from typing import List, Dict, Any, Optional
 
-logger = logging.getLogger("react_module")
+from core.react_memory import ReactMemory
+from core.research_tool import ResearchTool
+from utils.utils import broaden_search_query
 
-
-class Memory:
-    """
-    Memory system for ReACT agent to maintain context and search sources across iterations.
-    """
-
-    def __init__(self, max_memory_size: int = 1000):
-        self.max_memory_size = max_memory_size
-        self.memory_store = {
-            "search_results": {},  # Store search results by query hash
-            "research_findings": {},  # Store research findings by topic
-            "fact_checks": {},  # Store fact verification results
-            "context": [],  # Store contextual information
-            "sources": {},  # Store source URLs and metadata
-            "insights": [],  # Store key insights and learnings
-            "action_history": [],  # Store action patterns and outcomes
-        }
-        self.access_count = {}  # Track access frequency for memory management
-
-    def add_search_result(self, query: str, results: List[Dict], metadata: Dict = None):
-        """Add search results to memory with query as key."""
-        query_hash = self._hash_query(query)
-        self.memory_store["search_results"][query_hash] = {
-            "query": query,
-            "results": results,
-            "timestamp": datetime.now().isoformat(),
-            "metadata": metadata or {},
-            "access_count": 0,
-        }
-        self._manage_memory_size()
-
-    def add_research_finding(self, topic: str, finding: Dict):
-        """Add research finding to memory."""
-        topic_hash = self._hash_query(topic)
-        if topic_hash not in self.memory_store["research_findings"]:
-            self.memory_store["research_findings"][topic_hash] = []
-
-        self.memory_store["research_findings"][topic_hash].append(
-            {
-                "finding": finding,
-                "timestamp": datetime.now().isoformat(),
-                "access_count": 0,
-            }
-        )
-        self._manage_memory_size()
-
-    def add_fact_check(self, claim: str, verification: Dict):
-        """Add fact check result to memory."""
-        claim_hash = self._hash_query(claim)
-        self.memory_store["fact_checks"][claim_hash] = {
-            "claim": claim,
-            "verification": verification,
-            "timestamp": datetime.now().isoformat(),
-            "access_count": 0,
-        }
-        self._manage_memory_size()
-
-    def add_context(self, context: str, relevance_score: float = 1.0):
-        """Add contextual information to memory."""
-        self.memory_store["context"].append(
-            {
-                "context": context,
-                "relevance_score": relevance_score,
-                "timestamp": datetime.now().isoformat(),
-                "access_count": 0,
-            }
-        )
-        self._manage_memory_size()
-
-    def add_source(self, url: str, source_info: Dict):
-        """Add source information to memory."""
-        url_hash = self._hash_query(url)
-        self.memory_store["sources"][url_hash] = {
-            "url": url,
-            "info": source_info,
-            "timestamp": datetime.now().isoformat(),
-            "access_count": 0,
-        }
-        self._manage_memory_size()
-
-    def add_insight(self, insight: str, category: str = "general"):
-        """Add key insight to memory."""
-        self.memory_store["insights"].append(
-            {
-                "insight": insight,
-                "category": category,
-                "timestamp": datetime.now().isoformat(),
-                "access_count": 0,
-            }
-        )
-        self._manage_memory_size()
-
-    def get_relevant_search_results(
-        self, query: str, max_results: int = 5
-    ) -> List[Dict]:
-        """Retrieve relevant search results based on query similarity."""
-        query_hash = self._hash_query(query)
-
-        # Direct match
-        if query_hash in self.memory_store["search_results"]:
-            result = self.memory_store["search_results"][query_hash]
-            result["access_count"] += 1
-            return [result]
-
-        # Similarity search (simple keyword matching for now)
-        relevant_results = []
-        query_lower = query.lower()
-
-        for stored_query_hash, stored_result in self.memory_store[
-            "search_results"
-        ].items():
-            stored_query = stored_result["query"].lower()
-            # Simple keyword overlap check
-            query_words = set(query_lower.split())
-            stored_words = set(stored_query.split())
-            overlap = len(query_words.intersection(stored_words))
-
-            if overlap > 0:
-                stored_result["access_count"] += 1
-                relevant_results.append(stored_result)
-
-        # Sort by relevance (overlap) and recency
-        relevant_results.sort(
-            key=lambda x: (
-                len(
-                    set(query_lower.split()).intersection(
-                        set(x["query"].lower().split())
-                    )
-                ),
-                x["timestamp"],
-            ),
-            reverse=True,
-        )
-
-        return relevant_results[:max_results]
-
-    def get_research_findings(self, topic: str) -> List[Dict]:
-        """Retrieve research findings for a topic."""
-        topic_hash = self._hash_query(topic)
-        if topic_hash in self.memory_store["research_findings"]:
-            findings = self.memory_store["research_findings"][topic_hash]
-            for finding in findings:
-                finding["access_count"] += 1
-            return findings
-        return []
-
-    def get_fact_check(self, claim: str) -> Optional[Dict]:
-        """Retrieve fact check result for a claim."""
-        claim_hash = self._hash_query(claim)
-        if claim_hash in self.memory_store["fact_checks"]:
-            result = self.memory_store["fact_checks"][claim_hash]
-            result["access_count"] += 1
-            return result
-        return None
-
-    def get_relevant_context(self, query: str, max_context: int = 3) -> List[str]:
-        """Retrieve relevant contextual information."""
-        query_lower = query.lower()
-        relevant_contexts = []
-
-        for context_item in self.memory_store["context"]:
-            context_lower = context_item["context"].lower()
-            # Simple keyword matching
-            query_words = set(query_lower.split())
-            context_words = set(context_lower.split())
-            overlap = len(query_words.intersection(context_words))
-
-            if overlap > 0:
-                context_item["access_count"] += 1
-                relevant_contexts.append(context_item)
-
-        # Sort by relevance and recency
-        relevant_contexts.sort(
-            key=lambda x: (x["relevance_score"], x["timestamp"]), reverse=True
-        )
-
-        return [item["context"] for item in relevant_contexts[:max_context]]
-
-    def get_recent_insights(
-        self, category: str = None, max_insights: int = 5
-    ) -> List[str]:
-        """Retrieve recent insights, optionally filtered by category."""
-        insights = self.memory_store["insights"]
-        if category:
-            insights = [
-                insight for insight in insights if insight["category"] == category
-            ]
-
-        # Sort by recency
-        insights.sort(key=lambda x: x["timestamp"], reverse=True)
-
-        for insight in insights[:max_insights]:
-            insight["access_count"] += 1
-
-        return [insight["insight"] for insight in insights[:max_insights]]
-
-    def get_memory_summary(self) -> Dict[str, Any]:
-        """Get a summary of memory contents."""
-        return {
-            "total_search_results": len(self.memory_store["search_results"]),
-            "total_research_findings": sum(
-                len(findings)
-                for findings in self.memory_store["research_findings"].values()
-            ),
-            "total_fact_checks": len(self.memory_store["fact_checks"]),
-            "total_context_items": len(self.memory_store["context"]),
-            "total_sources": len(self.memory_store["sources"]),
-            "total_insights": len(self.memory_store["insights"]),
-            "memory_size": self._get_memory_size(),
-        }
-
-    def _hash_query(self, query: str) -> str:
-        """Create a hash for a query string."""
-        return hashlib.md5(query.encode()).hexdigest()
-
-    def _get_memory_size(self) -> int:
-        """Calculate current memory size."""
-        total_size = 0
-        for category, items in self.memory_store.items():
-            if isinstance(items, dict):
-                total_size += len(items)
-            elif isinstance(items, list):
-                total_size += len(items)
-        return total_size
-
-    def _manage_memory_size(self):
-        """Manage memory size by removing least accessed items if needed."""
-        current_size = self._get_memory_size()
-
-        if current_size <= self.max_memory_size:
-            return
-
-        # Remove least accessed items from each category
-        for category, items in self.memory_store.items():
-            if isinstance(items, dict):
-                # Sort by access count and remove least accessed
-                sorted_items = sorted(
-                    items.items(), key=lambda x: x[1].get("access_count", 0)
-                )
-                items_to_remove = current_size - self.max_memory_size
-                for i in range(min(items_to_remove, len(sorted_items))):
-                    del items[sorted_items[i][0]]
-            elif isinstance(items, list):
-                # Sort by access count and remove least accessed
-                items.sort(key=lambda x: x.get("access_count", 0))
-                items_to_remove = current_size - self.max_memory_size
-                if items_to_remove > 0:
-                    self.memory_store[category] = items[items_to_remove:]
+logger = logging.getLogger("react_base")
 
 
 class ReACTSignature(dspy.Signature):
     """ReACT signature for reasoning and acting on article generation tasks."""
 
     goal: str = dspy.InputField(desc="The goal or question to accomplish")
-    available_tools: str = dspy.InputField(
-        desc="List of available tools and their capabilities"
-    )
-    previous_actions: str = dspy.InputField(
-        desc="Previous actions taken and their results"
-    )
+    available_tools: str = dspy.InputField(desc="List of available tools and their capabilities")
+    previous_actions: str = dspy.InputField(desc="Previous actions taken and their results")
     memory_context: str = dspy.InputField(desc="Relevant information from memory")
 
     thought: str = dspy.OutputField(desc="Reasoning about what to do next")
-    action: str = dspy.OutputField(
-        desc="The action to take (search, analyze, synthesize, or finish)"
-    )
-    action_input: str = dspy.OutputField(desc="Input parameters for the action")
+    action: str = dspy.OutputField(desc="The action to take (search, analyze, synthesize, or finish)")
+    action_input: str = dspy.OutputField(desc="Input parameters for the action.")
 
 
 class ReACTAgent(dspy.Module):
@@ -287,12 +33,12 @@ class ReACTAgent(dspy.Module):
     to gather that information using web search and research tools.
     """
 
-    def __init__(self, brave_search: OptimizedBraveSearch, memory_size: int = 1000):
+    def __init__(self, search_tool, memory_size: int = 1000):
         super().__init__()
-        self.search_tool = brave_search
-        self.research_assistant = ResearchAssistant(brave_search)
+        self.search_tool = search_tool
+        self.research_tool = ResearchTool(search_tool)
         self.react_step = dspy.ChainOfThought(ReACTSignature)
-        self.memory = Memory(max_memory_size=memory_size)
+        self.memory = ReactMemory(max_memory_size=memory_size)
 
         # Available tools description
         self.tools_description = """
@@ -598,7 +344,7 @@ class ReACTAgent(dspy.Module):
             # Check if we got any results
             if not results:
                 # Try with a broader search
-                broader_query = self._broaden_search_query(search_query)
+                broader_query = broaden_search_query(search_query)
                 logger.warning(
                     f"⚠️  No results found for '{search_query}'. Trying broader search: '{broader_query}'"
                 )
@@ -638,54 +384,6 @@ class ReACTAgent(dspy.Module):
         except Exception as e:
             return {"action": "search", "error": str(e), "success": False}
 
-    def _broaden_search_query(self, query: str) -> str:
-        """Broaden a search query to get more results."""
-        # Remove specific terms that might be too narrow
-        narrow_terms = [
-            "latest",
-            "2024",
-            "2023",
-            "recent",
-            "newest",
-            "specific",
-            "exact",
-            "precise",
-            "detailed",
-            "comprehensive",
-            "complete",
-        ]
-
-        # Remove very specific technical terms that might not have many results
-        technical_terms = [
-            "implementation",
-            "architecture",
-            "framework",
-            "protocol",
-            "algorithm",
-            "methodology",
-            "paradigm",
-        ]
-
-        broadened = query.lower()
-
-        # Remove narrow terms
-        for term in narrow_terms:
-            broadened = broadened.replace(term, "")
-
-        # Remove technical terms if the query is very specific
-        if len(query.split()) > 3:
-            for term in technical_terms:
-                broadened = broadened.replace(term, "")
-
-        # Clean up extra spaces
-        broadened = " ".join(broadened.split())
-
-        # If we removed too much, add some general terms
-        if len(broadened.split()) < 2:
-            broadened = f"{broadened} overview guide"
-
-        return broadened
-
     def _perform_research(self, question: str) -> Dict[str, Any]:
         """Perform deep research on a question."""
         try:
@@ -698,7 +396,7 @@ class ReACTAgent(dspy.Module):
                 research_question = question
                 num_sources = 5
 
-            result = self.research_assistant.research_question(
+            result = self.research_tool.research_question(
                 research_question, num_sources=num_sources
             )
 
@@ -716,7 +414,7 @@ class ReACTAgent(dspy.Module):
     def _perform_fact_check(self, claim: str) -> Dict[str, Any]:
         """Fact-check a claim."""
         try:
-            result = self.research_assistant.verify_fact(claim, num_sources=3)
+            result = self.research_tool.verify_fact(claim, num_sources=3)
 
             return {
                 "action": "fact_check",
@@ -765,97 +463,3 @@ class ReACTAgent(dspy.Module):
             )
 
         return "\n".join(formatted)
-
-
-class EnhancedReACTSignature(dspy.Signature):
-    """Enhanced ReACT signature with domain-specific reasoning for article generation."""
-
-    topic: str = dspy.InputField(desc="Article topic or subject")
-    current_outline: str = dspy.InputField(desc="Current article outline or structure")
-    research_gaps: str = dspy.InputField(
-        desc="Identified gaps in current research or information"
-    )
-    available_tools: str = dspy.InputField(desc="Available research and analysis tools")
-    memory_context: str = dspy.InputField(
-        desc="Relevant information from memory for this topic"
-    )
-
-    reasoning: str = dspy.OutputField(
-        desc="Step-by-step reasoning about what information is needed"
-    )
-    research_strategy: str = dspy.OutputField(
-        desc="Strategy for gathering the needed information"
-    )
-    action_plan: str = dspy.OutputField(
-        desc="Specific actions to take with their parameters"
-    )
-
-
-class ArticleReACTAgent(ReACTAgent):
-    """
-    Specialized ReACT agent for article generation with enhanced reasoning capabilities.
-    """
-
-    def __init__(self, brave_search: OptimizedBraveSearch, memory_size: int = 1500):
-        super().__init__(brave_search, memory_size=memory_size)
-        self.enhanced_react = dspy.ChainOfThought(EnhancedReACTSignature)
-
-    def generate_article_with_research(
-        self, topic: str, initial_outline: Optional[Dict] = None
-    ) -> Dict[str, Any]:
-        """
-        Generate an article with comprehensive research using ReACT approach.
-        """
-        logger.info(f"Starting ReACT-enhanced article generation for: {topic}")
-
-        # Phase 1: Enhanced reasoning about research needs
-        outline_str = (
-            json.dumps(initial_outline)
-            if initial_outline
-            else "No initial outline provided"
-        )
-
-        # Get memory context for the topic
-        memory_context = self._get_memory_context(topic, "")
-
-        enhanced_reasoning = self.enhanced_react(
-            topic=topic,
-            current_outline=outline_str,
-            research_gaps="Initial research needed for comprehensive article",
-            available_tools=self.tools_description,
-            memory_context=memory_context,
-        )
-
-        logger.info(f"\nEnhanced Reasoning:")
-        logger.info(f"Strategy:\n {enhanced_reasoning.research_strategy}")
-        logger.info(f"Action Plan:\n {enhanced_reasoning.action_plan}")
-
-        # Phase 2: Execute research plan using ReACT
-        research_goal = f"""
-        Research and gather comprehensive, current information about '{topic}' to create a well-informed article.
-        
-        Research Strategy: {enhanced_reasoning.research_strategy}
-        Action Plan: {enhanced_reasoning.action_plan}
-        
-        Goal: Gather enough information to write authoritative sections on the topic with current facts and multiple perspectives.
-        """
-
-        react_results = self.forward(research_goal, max_iterations=8)
-
-        # Phase 3: Synthesize research into article structure
-        synthesis_goal = f"""
-        Synthesize all gathered research into a comprehensive article outline and key content points for '{topic}'.
-        Use the research findings to create detailed, factual content.
-        """
-
-        synthesis_results = self.forward(synthesis_goal, max_iterations=3)
-
-        return {
-            "topic": topic,
-            "enhanced_reasoning": enhanced_reasoning,
-            "research_phase": react_results,
-            "synthesis_phase": synthesis_results,
-            "total_actions": len(react_results["actions_taken"])
-            + len(synthesis_results["actions_taken"]),
-            "memory_summary": self.memory.get_memory_summary(),
-        }

@@ -1,17 +1,11 @@
-from pathlib import Path
 import dspy
-import click
-import os
-import json
-from dotenv import load_dotenv
-from utils import Translator, llm_setup
-from bravesearch import OptimizedBraveSearch
-from ddgsearch import OptimizedDDGSearch
-from react_module import ArticleReACTAgent, ReACTAgent
-from research_assistant import ResearchAssistant
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 import logging
-from datetime import datetime
+
+from utils.signatures import Translator
+from core.react_article import ArticleReACTAgent
+from core.research_tool import ResearchTool
+
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s|%(name)s|%(levelname)s|%(message)s"
@@ -20,9 +14,6 @@ logger = logging.getLogger("enhanced_article_creator")
 
 logging.getLogger("LiteLLM").setLevel(logging.WARNING)
 logging.getLogger("httpx").setLevel(logging.WARNING)
-
-
-load_dotenv()
 
 
 class ResearchEnhancedOutline(dspy.Signature):
@@ -72,14 +63,14 @@ class FactCheckSignature(dspy.Signature):
     )
 
 
-class EnhancedDraftArticle(dspy.Module):
+class EnhancedArticleCreator(dspy.Module):
     """Enhanced article generator with web search integration and ReACT reasoning."""
 
-    def __init__(self, brave_search: OptimizedBraveSearch):
+    def __init__(self, search_tool):
         super().__init__()
-        self.search_tool = brave_search
-        self.research_assistant = ResearchAssistant(brave_search)
-        self.react_agent = ArticleReACTAgent(brave_search)
+        self.search_tool = search_tool
+        self.research_tool = ResearchTool(search_tool)
+        self.react_agent = ArticleReACTAgent(search_tool)
 
         # DSPy modules
         self.build_outline = dspy.ChainOfThought(ResearchEnhancedOutline)
@@ -200,7 +191,7 @@ class EnhancedDraftArticle(dspy.Module):
             return "No search results available."
 
         summaries = []
-        for result in search_results[:3]:  # Top 3 results
+        for result in search_results:
             if hasattr(result, "snippet") and hasattr(result, "title"):
                 summaries.append(f"{result.title}: {result.snippet}")
             elif isinstance(result, dict):
@@ -272,234 +263,3 @@ class EnhancedDraftArticle(dspy.Module):
             if relevant_sources
             else "\n".join(key_sources[:3])
         )
-
-
-class WebSearchArticleCreator(dspy.Module):
-    """Simplified article creator focusing on web search integration."""
-
-    def __init__(self, brave_search: OptimizedBraveSearch):
-        super().__init__()
-        self.search_tool = brave_search
-        self.research_assistant = ResearchAssistant(brave_search)
-
-        # Simpler pipeline for focused web search integration
-        self.outline_generator = dspy.ChainOfThought(
-            "topic, current_info -> title, sections, key_points"
-        )
-        self.content_generator = dspy.ChainOfThought(
-            "topic, section, research_data -> detailed_content"
-        )
-        self.translate = dspy.Predict(Translator)
-
-    def forward(self, topic: str, language: str = "Korean") -> Dict[str, Any]:
-        """Generate article with focused web search integration."""
-        logger.info(f"Web search-enhanced article generation for: {topic}")
-
-        # Step 1: Research current information
-        research_result = self.research_assistant.research_question(
-            f"What are the latest developments and key information about {topic}?",
-            num_sources=8,
-        )
-
-        # Step 2: Generate outline based on research
-        outline = self.outline_generator(
-            topic=topic, current_info=research_result["answer"]
-        )
-
-        # Step 3: Generate content for each section
-        sections_en = []
-        sections_other = []
-
-        for section in outline.sections:
-            # Get specific research for this section
-            section_research = self.research_assistant.research_question(
-                f"Detailed information about {section} in the context of {topic}",
-                num_sources=5,
-            )
-
-            # Generate section content
-            content = self.content_generator(
-                topic=topic, section=section, research_data=section_research["answer"]
-            )
-
-            section_en = content.detailed_content
-            sections_en.append(section_en)
-
-            # Translate if needed
-            if language.lower() != "english":
-                translated = self.translate(text=section_en, language=language)
-                sections_other.append(translated.translated_content)
-            else:
-                sections_other.append(section_en)
-
-        return dspy.Prediction(
-            title=outline.title,
-            sections_en=sections_en,
-            sections_other=sections_other,
-            research_sources=research_result["sources"],
-            key_points=outline.key_points,
-        )
-
-
-@click.command()
-@click.option("--topic", type=str, default="The impact of AI on jobs in 2024")
-@click.option("--language", type=str, default="Korean")
-@click.option("--output_dir", type=str, default="data/articles")
-@click.option(
-    "--mode",
-    type=click.Choice(["enhanced", "websearch", "react"]),
-    default="enhanced",
-    help="Article generation mode",
-)
-@click.option(
-    "--use_react", is_flag=True, default=True, help="Use ReACT agent for research"
-)
-@click.option("--llm_model", type=str, default="openai/gpt-4o-mini")
-@click.option("--search_tool_name", type=str, default="ddg")
-def main(topic, language, output_dir, mode, use_react, llm_model, search_tool_name):
-    """Enhanced article creator with web search and ReACT integration."""
-
-    # Setup
-    llm_setup(llm_model)
-
-    # Initialize Brave Search
-    brave_api_key = os.getenv("BRAVE_SEARCH_API_KEY")
-    if not brave_api_key:
-        logger.warning(
-            "Warning: BRAVE_SEARCH_API_KEY not found. Using limited functionality."
-        )
-        logger.warning(
-            "Please set BRAVE_SEARCH_API_KEY environment variable for full web search capabilities."
-        )
-        return
-
-    if search_tool_name == "brave":
-        search_tool = OptimizedBraveSearch(api_key=brave_api_key, k=5, source="web")
-    elif search_tool_name == "ddg":
-        search_tool = OptimizedDDGSearch(k=5)
-    else:
-        raise ValueError(f"Invalid search tool: {search_tool_name}")
-
-    # Choose article generator based on mode
-    if mode == "enhanced":
-        article_generator = EnhancedDraftArticle(search_tool)
-        prediction = article_generator.forward(
-            topic=topic, language=language, use_react=use_react
-        )
-    elif mode == "websearch":
-        article_generator = WebSearchArticleCreator(search_tool)
-        prediction = article_generator.forward(topic=topic, language=language)
-    elif mode == "react":
-        react_agent = ArticleReACTAgent(search_tool)
-        react_results = react_agent.generate_article_with_research(topic)
-        logger.info(
-            "ReACT research completed. Use 'enhanced' mode to generate full article."
-        )
-        logger.info(f"Research summary: {react_results}")
-        return
-
-    # Save articles
-    output_dir = Path(output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
-    topic_slug = topic.lower().replace(" ", "-").replace(",", "")
-    lang_slug = language[:3].lower()
-
-    # Create click options table
-    options_table = create_click_options_table(
-        topic=topic, 
-        language=language, 
-        output_dir=str(output_dir), 
-        mode=mode, 
-        use_react=use_react, 
-        llm_model=llm_model, 
-        search_tool_name=search_tool_name
-    )
-
-    # Save translated version
-    with open(output_dir / f"{topic_slug}-{lang_slug}.md", "w", encoding="utf-8") as f:
-        f.write(f"# {prediction.title}\n\n")
-        for section in prediction.sections_other:
-            f.write(section)
-            f.write("\n\n")
-
-        # Add sources if available
-        if hasattr(prediction, "key_sources") and prediction.key_sources:
-            f.write("## Sources\n\n")
-            for source in prediction.key_sources:
-                f.write(f"- {source}\n")
-        
-        # Add click options table
-        f.write(options_table)
-
-    # Save English version
-    with open(output_dir / f"{topic_slug}-en.md", "w", encoding="utf-8") as f:
-        f.write(f"# {prediction.title}\n\n")
-        for section in prediction.sections_en:
-            f.write(section)
-            f.write("\n\n")
-
-        # Add sources if available
-        if hasattr(prediction, "key_sources") and prediction.key_sources:
-            f.write("## Sources\n\n")
-            for source in prediction.key_sources:
-                f.write(f"- {source}\n")
-        
-        # Add click options table
-        f.write(options_table)
-
-    # Save research summary if available
-    if hasattr(prediction, "research_summary") and prediction.research_summary:
-        with open(output_dir / f"{topic_slug}-research.md", "w", encoding="utf-8") as f:
-            f.write(f"# Research Summary: {prediction.title}\n\n")
-            f.write(prediction.research_summary)
-            f.write("\n\n")
-            f.write(options_table)
-
-    logger.info(f"Enhanced article saved to {output_dir}")
-    logger.info(f"Files created:")
-    logger.info(f"  - {topic_slug}-{lang_slug}.md (translated)")
-    logger.info(f"  - {topic_slug}-en.md (English)")
-    if hasattr(prediction, "research_summary"):
-        logger.info(f"  - {topic_slug}-research.md (research summary)")
-
-
-def create_click_options_table(topic: str, language: str, output_dir: str, mode: str, 
-                              use_react: bool, llm_model: str, search_tool_name: str) -> str:
-    """Create a markdown table with the click options used to generate the article."""
-    
-    generation_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    
-    table = f"""
-## Generation Parameters
-
-This article was generated using the following parameters:
-
-| Parameter | Value |
-|-----------|-------|
-| **Topic** | {topic} |
-| **Language** | {language} |
-| **Output Directory** | {output_dir} |
-| **Generation Mode** | {mode} |
-| **ReACT Agent** | {'Enabled' if use_react else 'Disabled'} |
-| **LLM Model** | {llm_model} |
-| **Search Tool** | {search_tool_name} |
-| **Generated At** | {generation_time} |
-
-### Command Used
-
-```bash
-python src/enhanced_article_creator.py \\
-    --topic "{topic}" \\
-    --language "{language}" \\
-    --output_dir "{output_dir}" \\
-    --mode {mode} \\
-    --llm_model "{llm_model}" \\
-    --search_tool_name "{search_tool_name}" \\
-    {"--use_react" if use_react else ""}
-```
-"""
-    return table
-
-
-if __name__ == "__main__":
-    main()
