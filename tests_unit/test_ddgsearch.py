@@ -18,7 +18,9 @@ def show_search_results(qtype: str, query: str, results: List[SearchResult]):
         print(f"\n--- Result {i} ---")
         print(f"Title: {result.title}")
         print(f"URL: {result.url}")
-        print(f"Snippet: {result.snippet}")
+        print(f"Content: {result.content}")
+        if result.notes:
+            print(f"Notes: {result.notes}")
         if result.published_time:
             print(f"Published: {result.published_time}")
 
@@ -80,8 +82,7 @@ def test_filtered_search():
     query = "machine learning"
     results = search_tool.search_with_filters(
         query=query,
-        domain_filter="wikipedia.org",
-        date_filter="2024-01-01",
+        site_filter="wikipedia.org",
     )
 
     show_search_results("Filtered", query, results)

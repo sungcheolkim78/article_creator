@@ -8,9 +8,9 @@ class SearchResult:
 
     title: str
     url: str
-    snippet: str
-    extra_snippets: List[str] = None
+    content: str
+    notes: Optional[str] = None
     published_time: Optional[str] = None
 
     def __str__(self):
-        return f"Title: {self.title}\nURL: {self.url}\nSnippet: {self.snippet}\n"
+        return f"Title: {self.title}\nURL: {self.url}\nContent: {self.content}\n"

@@ -3,10 +3,8 @@ from ddgs import DDGS
 from typing import List, Dict, Optional, Any
 from websearch.schema import SearchResult
 import logging
+from dspy.clients.cache import request_cache
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s|%(name)s|%(levelname)s|%(message)s"
-)
 logger = logging.getLogger("ddg_search")
 
 logging.getLogger("primp").setLevel(logging.WARNING)
@@ -21,7 +19,6 @@ class DDGSearchTool(dspy.Retrieve):
         region: str = "us-en",
         safesearch: str = "moderate",
         backend: str = "auto",
-        max_results: Optional[int] = None,
         timelimit: Optional[str] = None,
     ):
         super().__init__(k=k)
@@ -29,9 +26,7 @@ class DDGSearchTool(dspy.Retrieve):
         self.region = region
         self.safesearch = safesearch
         self.backend = backend
-        self.max_results = max_results
         self.timelimit = timelimit
-        self.ddgs = DDGS()
 
     def forward(self, query: str, k: Optional[int] = None) -> List[str]:
         """
@@ -44,37 +39,26 @@ class DDGSearchTool(dspy.Retrieve):
     def search(self, query: str, k: Optional[int] = None) -> List[SearchResult]:
         """Perform search and return structured results."""
         k = k or self.k
-        max_results = self.max_results or k
 
-        try:
-            return get_text(
-                self.ddgs,
-                query,
-                self.region,
-                self.safesearch,
-                self.backend,
-                self.timelimit,
-                max_results,
-                k,
-            )
-
-        except Exception as e:
-            logger.error(f"Error making request to DuckDuckGo Search: {e}")
-            return []
+        options = {
+            "region": self.region,
+            "safesearch": self.safesearch,
+            "backend": self.backend,
+            "timelimit": self.timelimit,
+        }
+        return get_text(query, k, options)
 
     def search_news(self, query: str, k: Optional[int] = None) -> List[SearchResult]:
         """Search for news articles specifically."""
         k = k or self.k
-        max_results = self.max_results or k
 
-        try:
-            return get_news(
-                self.ddgs, query, self.region, self.safesearch, max_results, k
-            )
-
-        except Exception as e:
-            logger.error(f"Error making request to DuckDuckGo News Search: {e}")
-            return []
+        options = {
+            "region": self.region,
+            "safesearch": self.safesearch,
+            "backend": self.backend,
+            "timelimit": self.timelimit,
+        }
+        return get_news(query, k, options)
 
 
 # Advanced usage: Custom search optimization
@@ -112,94 +96,46 @@ class OptimizedDDGSearch(DDGSearchTool):
     def search_with_filters(
         self,
         query: str,
-        region_filter: Optional[str] = None,
-        time_filter: Optional[str] = None,
         k: Optional[int] = None,
+        site_filter: str = "wikipedia.org",
     ) -> List[SearchResult]:
         """Search with additional filters."""
 
         # Apply filters
-        region = region_filter or self.region
-        timelimit = time_filter  # d, w, m, y for day, week, month, year
+        query = f"{query} site:{site_filter}"
 
-        k = k or self.k
-        max_results = self.max_results or k
-
-        try:
-            return get_text(
-                self.ddgs,
-                query,
-                region,
-                self.safesearch,
-                self.backend,
-                timelimit,
-                max_results,
-                k,
-            )
-
-        except Exception as e:
-            logger.error(f"Error making request to DuckDuckGo Search: {e}")
-            return []
+        return self.search(query, k)
 
 
+@request_cache()
 def get_news(
-    ddgs: DDGS, query: str, region: str, safesearch: str, max_results: int, k: int
+    query: str, k: int, options: dict = {}
 ) -> List[SearchResult]:
     # Use DuckDuckGo news search
-    results = list(
-        ddgs.news(
-            query,
-            region=region,
-            safesearch=safesearch,
-            max_results=max_results,
-        )
-    )
+    results = DDGS().news(query, max_results=k, **options)
 
-    search_results = []
-    for item in results[:k]:
-        result = SearchResult(
+    return [
+        SearchResult(
             title=item.get("title", ""),
             url=item.get("url", ""),
-            snippet=item.get("body", ""),
+            content=item.get("body", ""),
             published_time=item.get("date", None),
-            extra_snippets=[],
-        )
-        search_results.append(result)
-
-    return search_results
+            notes=item.get("source", None),
+        ) for item in results]
 
 
-def get_text(
-    ddgs: DDGS,
-    query: str,
-    region: str,
-    safesearch: str,
-    backend: str,
-    timelimit: str,
-    max_results: int,
-    k: int,
-) -> List[SearchResult]:
+@request_cache()
+def get_text(query: str, k: int, options: dict = {}) -> List[SearchResult]:
     # Use DuckDuckGo search
-    results = list(
-        ddgs.text(
-            query,
-            region=region,
-            safesearch=safesearch,
-            backend=backend,
-            max_results=max_results,
-            timelimit=timelimit,
-        )
-    )
+    results = DDGS().text(query, max_results=k, **options)
 
-    search_results = []
-    for item in results[:k]:
-        result = SearchResult(
+    return [
+        SearchResult(
             title=item.get("title", ""),
             url=item.get("href", ""),
-            snippet=item.get("body", ""),
-            published_time=item.get("date", None),
-            extra_snippets=[],  # DuckDuckGo doesn't provide extra snippets
+            content=item.get("body", ""),
+            published_time=None,
+            notes=None,
         )
-        search_results.append(result)
-
-    return search_results
+        for item in results
+    ]
