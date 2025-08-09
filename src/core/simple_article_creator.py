@@ -5,7 +5,6 @@ import logging
 logger = logging.getLogger("article_creator")
 
 
-
 class Outline(dspy.Signature):
     """Outline a thorough overview of a topic."""
 
@@ -62,7 +61,7 @@ class SimpleArticleCreator(dspy.Module):
             sections_translated.append(section_other.translated_content)
 
         return dspy.Prediction(
-            title=outline.title, 
-            sections_en=sections_en, 
-            sections_translated=sections_translated
+            title=outline.title,
+            sections_en=sections_en,
+            sections_translated=sections_translated,
         )

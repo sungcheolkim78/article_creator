@@ -13,8 +13,12 @@ class ResearchTool(dspy.Module):
 
         # Define DSPy signatures for different research tasks
         self.query_generator = dspy.ChainOfThought("question -> search_query")
-        self.synthesizer = dspy.ChainOfThought("question, search_results -> comprehensive_answer")
-        self.fact_checker = dspy.ChainOfThought("claim, search_results -> verification_status, explanation")
+        self.synthesizer = dspy.ChainOfThought(
+            "question, search_results -> comprehensive_answer"
+        )
+        self.fact_checker = dspy.ChainOfThought(
+            "claim, search_results -> verification_status, explanation"
+        )
 
     def research_question(self, question: str, num_sources: int = 5) -> Dict[str, Any]:
         """Research a question using web search and synthesis."""
@@ -25,7 +29,7 @@ class ResearchTool(dspy.Module):
         search_results = self.search_tool.optimized_search(search_query, k=num_sources)
 
         # Format results for synthesis
-        formatted_results = "\n\n".join(
+        search_content = "\n\n".join(
             [
                 f"Source {i + 1}: {result.title}\n{result.snippet}\n{extra_snippets}\nURL: {result.url}"
                 if (extra_snippets := "\n".join(result.extra_snippets))
@@ -36,14 +40,15 @@ class ResearchTool(dspy.Module):
 
         # Synthesize comprehensive answer
         synthesis = self.synthesizer(
-            question=question, search_results=formatted_results
+            question=question, search_results=search_content
         )
 
         return {
             "question": question,
             "search_query": search_query,
-            "sources": formatted_results,
+            "content": search_content,
             "answer": synthesis.comprehensive_answer,
+            "sources": search_results,
             "num_sources": len(search_results),
         }
 

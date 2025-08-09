@@ -3,7 +3,7 @@ import json
 import logging
 import click
 from datetime import datetime
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Literal
 
 from core.react_memory import ReactMemory
 from core.research_tool import ResearchTool
@@ -12,17 +12,20 @@ from utils.utils import broaden_search_query
 logger = logging.getLogger("react_base")
 
 
-class ReACTSignature(dspy.Signature):
-    """ReACT signature for reasoning and acting on article generation tasks."""
+class ReACTStep(dspy.Signature):
+    """ReACT step signature for reasoning and acting on article generation tasks."""
 
     goal: str = dspy.InputField(desc="The goal or question to accomplish")
-    available_tools: str = dspy.InputField(desc="List of available tools and their capabilities")
-    previous_actions: str = dspy.InputField(desc="Previous actions taken and their results")
+    available_tools: str = dspy.InputField(
+        desc="List of available tools and their capabilities"
+    )
+    previous_actions: str = dspy.InputField(
+        desc="Previous actions taken and their results"
+    )
     memory_context: str = dspy.InputField(desc="Relevant information from memory")
 
-    thought: str = dspy.OutputField(desc="Reasoning about what to do next")
-    action: str = dspy.OutputField(desc="The action to take (search, analyze, synthesize, or finish)")
-    action_input: str = dspy.OutputField(desc="Input parameters for the action.")
+    action: Literal["search", "research", "fact_check", "analyze", "finish"] = dspy.OutputField()
+    action_input: dict = dspy.OutputField(desc="Input parameters for the action.")
 
 
 class ReACTAgent(dspy.Module):
@@ -37,27 +40,26 @@ class ReACTAgent(dspy.Module):
         super().__init__()
         self.search_tool = search_tool
         self.research_tool = ResearchTool(search_tool)
-        self.react_step = dspy.ChainOfThought(ReACTSignature)
+        self.react_step = dspy.ChainOfThought(ReACTStep)
         self.memory = ReactMemory(max_memory_size=memory_size)
 
         # Available tools description
         self.tools_description = """
         Available tools:
-        1. search: Perform web search for current information
-        2. research: Deep research on a specific question with synthesis
-        3. fact_check: Verify claims or facts
-        4. analyze: Analyze and synthesize information
+        1. search: Perform web search for current information, need to provide a query
+        2. research: Deep research on a specific question with synthesis, need to provide a list of questions
+        3. analyze: Analyze and synthesize information, need to provide a content
+        4. fact_check: Verify claims or facts, need to provide a claim
         5. finish: Complete the task with final output
         """
 
+        self.research_num_sources = 5
         self.max_iterations = 10
 
     def forward(
         self, goal: str, max_iterations: Optional[int] = None
     ) -> Dict[str, Any]:
-        """
-        Execute ReACT loop to accomplish the given goal.
-        """
+        """Execute ReACT loop to accomplish the given goal."""
         max_iter = max_iterations or self.max_iterations
         actions_taken = []
         gathered_info = []
@@ -67,7 +69,10 @@ class ReACTAgent(dspy.Module):
             previous_actions_str = self._format_previous_actions(actions_taken)
 
             # Get relevant memory context
-            memory_context = self._get_memory_context(goal, previous_actions_str)
+            memory_context = self._get_memory_context(goal, actions_taken)
+            print()
+            print(click.style(f'⚙️ Iteration {iteration + 1}', fg='green', bold=True))
+            print(click.style(f"Memory Context: {memory_context}", fg='red'))
 
             # Get next action from ReACT reasoning
             react_output = self.react_step(
@@ -77,10 +82,9 @@ class ReACTAgent(dspy.Module):
                 memory_context=memory_context,
             )
 
-            print(f"\n{click.style('⚙️ Iteration ' + str(iteration + 1), fg='green', bold=True)}")
-            print(f"{click.style('💡 Thought: ' + react_output.thought, fg='green')}")
-            print(f"{click.style('🔍 Action: ' + react_output.action, fg='green')}")
-            print(f"{click.style('🔍 Action Input: ' + react_output.action_input, fg='green')}")
+            print(click.style(f'💡 Thought: {react_output.reasoning}', fg='green'))
+            print(click.style(f'🔍 Action: {react_output.action}', fg='green'))
+            print(click.style(f'🔍 Action Input: {react_output.action_input}', fg='green'))
 
             # Execute the action
             action_result = self._execute_action(
@@ -95,26 +99,12 @@ class ReACTAgent(dspy.Module):
             # Record the action
             action_record = {
                 "iteration": iteration + 1,
-                "thought": react_output.thought,
+                "thought": react_output.reasoning,
                 "action": react_output.action,
-                "action_input": react_output.action_input,
+                "action_input": str(react_output.action_input),
                 "result": action_result,
             }
             actions_taken.append(action_record)
-
-            # Provide feedback for failed searches
-            if (
-                react_output.action.lower() == "search"
-                and action_result
-                and not action_result.get("success", True)
-            ):
-                logger.warning(
-                    f"❌ Search failed: {action_result.get('error', 'Unknown error')}"
-                )
-                if action_result.get("broader_query"):
-                    logger.warning(
-                        f"💡 Suggestion: Try a broader topic or different keywords"
-                    )
 
             # Check if we should finish
             if react_output.action.lower() == "finish":
@@ -133,7 +123,7 @@ class ReACTAgent(dspy.Module):
             "memory_summary": self.memory.get_memory_summary(),
         }
 
-    def _get_memory_context(self, goal: str, previous_actions: str) -> str:
+    def _get_memory_context(self, goal: str, actions_taken: List[Dict[str, Any]]) -> str:
         """Get relevant context from memory for the current goal and actions."""
         context_parts = []
 
@@ -152,13 +142,22 @@ class ReACTAgent(dspy.Module):
                     context_parts.append(f"  Note: {search['metadata']['note']}")
 
         # Get relevant research findings
-        relevant_findings = self.memory.get_research_findings(goal)
+        if actions_taken:
+            print(actions_taken[-1])
+        if actions_taken and "answers" in actions_taken[-1]["result"]:
+            questions = actions_taken[-1]["result"].get("questions", "")
+            relevant_findings = []
+            for question in questions:
+                findings = self.memory.get_research_findings(question)
+                if findings:
+                    relevant_findings.extend(findings)
+        else:
+            relevant_findings = self.memory.get_research_findings(goal)
         if relevant_findings:
             context_parts.append("Relevant research findings:")
             for finding in relevant_findings[:2]:  # Limit to 2 findings
-                context_parts.append(
-                    f"- {finding['finding'].get('answer', 'Finding available')[:100]}..."
-                )
+                finding_str = finding['finding'].get('answer', 'Finding available')[:200].replace('\n\n', '\n')
+                context_parts.append(f"- {finding_str}...")
 
         # Get relevant context
         relevant_context = self.memory.get_relevant_context(goal, max_context=2)
@@ -214,18 +213,16 @@ class ReACTAgent(dspy.Module):
                     results_dict.append(search_result)
 
             # Store the search result with additional metadata
-            metadata = {"num_results": num_results, "action": "search"}
-
-            # Add broader search information if available
-            if result.get("broader_query"):
-                metadata["broader_query"] = result["broader_query"]
-                metadata["original_query"] = action_input
-
-            if result.get("note"):
-                metadata["note"] = result["note"]
+            metadata = {
+                "num_results": num_results, 
+                "action": action,
+                "query": action_input.get("query", ""),
+                "broader_query": result.get("broader_query", ""),
+                "note": result.get("note", "")
+            }
 
             self.memory.add_search_result(
-                query=action_input, results=results_dict, metadata=metadata
+                query=action_input.get("query", ""), results=results_dict, metadata=metadata
             )
 
             # Extract and store sources
@@ -253,29 +250,6 @@ class ReACTAgent(dspy.Module):
                         },
                     )
 
-        elif action == "research":
-            # Store research findings
-            self.memory.add_research_finding(
-                topic=action_input,
-                finding={
-                    "answer": result.get("answer", ""),
-                    "sources": result.get("sources", []),
-                    "search_query": result.get("search_query", ""),
-                },
-            )
-
-            # Store sources from research
-            for source in result.get("sources", []):
-                if isinstance(source, dict) and source.get("url"):
-                    self.memory.add_source(
-                        url=source["url"],
-                        source_info={
-                            "title": source.get("title", ""),
-                            "content": source.get("content", "")[:200],
-                            "research_topic": action_input,
-                        },
-                    )
-
         elif action == "fact_check":
             # Store fact check results
             self.memory.add_fact_check(
@@ -287,43 +261,27 @@ class ReACTAgent(dspy.Module):
                 },
             )
 
-        elif action == "analyze":
-            # Store analysis insights
-            self.memory.add_insight(
-                insight=result.get("key_insights", ""), category="analysis"
-            )
 
-            # Store analysis context
-            self.memory.add_context(
-                context=f"Analysis of: {action_input[:100]}...", relevance_score=0.8
-            )
 
     def _execute_action(self, action: str, action_input: str) -> Dict[str, Any]:
         """Execute the specified action with given input."""
 
         action = action.lower().strip()
 
-        try:
-            if action == "search":
-                return self._perform_search(action_input)
-            elif action == "research":
-                return self._perform_research(action_input)
-            elif action == "fact_check":
-                return self._perform_fact_check(action_input)
-            elif action == "analyze":
-                return self._perform_analysis(action_input)
-            elif action == "finish":
-                return {"action": "finish", "result": action_input, "success": True}
-            else:
-                return {
-                    "action": action,
-                    "error": f"Unknown action: {action}",
-                    "success": False,
-                }
-        except Exception as e:
+        if action == "search":
+            return self._perform_search(action_input.get("query", ""))
+        elif action == "research":
+            return self._perform_research(action_input)
+        elif action == "fact_check":
+            return self._perform_fact_check(action_input.get("claim", ""))
+        elif action == "analyze":
+            return self._perform_analysis(action_input.get("content", ""))
+        elif action == "finish":
+            return {"action": "finish", "result": action_input, "success": True}
+        else:
             return {
                 "action": action,
-                "error": f"Error executing action: {str(e)}",
+                "error": f"Unknown action: {action}",
                 "success": False,
             }
 
@@ -340,76 +298,88 @@ class ReACTAgent(dspy.Module):
                 num_results = 5
 
             results = self.search_tool.optimized_search(search_query, k=num_results)
-
             # Check if we got any results
-            if not results:
-                # Try with a broader search
-                broader_query = broaden_search_query(search_query)
-                logger.warning(
-                    f"⚠️  No results found for '{search_query}'. Trying broader search: '{broader_query}'"
-                )
+            if results:
+                return {
+                    "action": "search",
+                    "query": search_query,
+                    "results": results,
+                    "num_results": len(results),
+                    "success": True,
+                }
 
-                broader_results = self.search_tool.optimized_search(
-                    broader_query, k=num_results
-                )
+            # Try with a broader search
+            broader_query = broaden_search_query(search_query)
+            logger.warning(
+                f"⚠️  No results found for '{search_query}'. Trying broader search: '{broader_query}'"
+            )
 
-                if broader_results:
-                    return {
-                        "action": "search",
-                        "query": search_query,
-                        "broader_query": broader_query,
-                        "results": broader_results,
-                        "num_results": len(broader_results),
-                        "success": True,
-                        "note": f"No results for original query. Used broader search: '{broader_query}'",
-                    }
-                else:
-                    return {
-                        "action": "search",
-                        "query": search_query,
-                        "broader_query": broader_query,
-                        "results": [],
-                        "num_results": 0,
-                        "success": False,
-                        "error": f"No results found for '{search_query}' or broader query '{broader_query}'. Consider using a more general topic or different keywords.",
-                    }
+            broader_results = self.search_tool.optimized_search(
+                broader_query, k=num_results
+            )
+
+            if broader_results:
+                return {
+                    "action": "search",
+                    "query": search_query,
+                    "broader_query": broader_query,
+                    "results": broader_results,
+                    "num_results": len(broader_results),
+                    "success": True,
+                    "note": f"No results for original query. Used broader search: '{broader_query}'",
+                }
 
             return {
                 "action": "search",
                 "query": search_query,
-                "results": results,
-                "num_results": len(results),
-                "success": True,
+                "broader_query": broader_query,
+                "results": [],
+                "num_results": 0,
+                "success": False,
+                "note": f"No results found for '{search_query}' or broader query '{broader_query}'. Consider using a more general topic or different keywords.",
             }
+
         except Exception as e:
             return {"action": "search", "error": str(e), "success": False}
 
-    def _perform_research(self, question: str) -> Dict[str, Any]:
+    def _perform_research(self, action_input: dict) -> Dict[str, Any]:
         """Perform deep research on a question."""
-        try:
-            # Parse question if it's JSON-like
-            if question.startswith("{"):
-                question_data = json.loads(question)
-                research_question = question_data.get("question", question)
-                num_sources = question_data.get("num_sources", 5)
-            else:
-                research_question = question
-                num_sources = 5
+        questions = action_input.get("questions", [action_input.get("question", "")])
+        answers = []
 
+        for question in questions:
             result = self.research_tool.research_question(
-                research_question, num_sources=num_sources
+                question, num_sources=self.research_num_sources
+            )
+            answers.append(result.get("answer", ""))
+
+            # Store research findings
+            self.memory.add_research_finding(
+                topic=question,
+                finding={
+                    "answer": result.get("answer", ""),
+                    "search_query": result.get("search_query", ""),
+                    "content": result.get("content", ""),
+                },
             )
 
-            return {
-                "action": "research",
-                "question": research_question,
-                "answer": result["answer"],
-                "sources": result["sources"],
-                "search_query": result["search_query"],
-                "success": True,
-            }
-        except Exception as e:
-            return {"action": "research", "error": str(e), "success": False}
+            # Store sources from research
+            for source in result.get("sources", []):
+                self.memory.add_source(
+                    url=source.url,
+                    source_info={
+                        "title": source.title,
+                        "content": source.snippet,
+                        "research_topic": question,
+                    },
+                )
+
+        return {
+            "action": "research",
+            "questions": questions,
+            "answers": answers,
+            "success": True,
+        }
 
     def _perform_fact_check(self, claim: str) -> Dict[str, Any]:
         """Fact-check a claim."""
@@ -436,6 +406,16 @@ class ReACTAgent(dspy.Module):
             )
             result = analyzer(content=content)
 
+            # Store analysis insights
+            self.memory.add_insight(
+                insight=result.get("key_insights", ""), category="analysis"
+            )
+
+            # Store analysis context
+            self.memory.add_context(
+                context=f"Analysis of: {content[:200]}...", relevance_score=0.8
+            )
+
             return {
                 "action": "analyze",
                 "content": content,
@@ -453,12 +433,11 @@ class ReACTAgent(dspy.Module):
             return "No previous actions taken."
 
         formatted = []
-        for action in actions[
-            -3:
-        ]:  # Only show last 3 actions to avoid context overflow
+        # Only show last 3 actions to avoid context overflow
+        for action in actions[-3:]:  
             formatted.append(
                 f"Action {action['iteration']}: {action['action']} - "
-                f"Input: {action['action_input'][:100]}... - "
+                f"Input: {action['action_input'][:200]}... - "
                 f"Success: {action['result'].get('success', 'Unknown')}"
             )
 

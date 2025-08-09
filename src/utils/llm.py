@@ -2,6 +2,9 @@ import os
 from dotenv import load_dotenv
 import dspy
 from typing import Dict, List, Any
+import logging
+
+logging.getLogger("LiteLLM").setLevel(logging.WARNING)
 
 load_dotenv()
 
@@ -11,7 +14,7 @@ def llm_setup(model_name: str) -> None:
     Setup the LLM for dspy.
 
     Args:
-        model_name: The name of the model to use. examples: "openai/gpt-4o-mini", 
+        model_name: The name of the model to use. examples: "openai/gpt-4o-mini",
         "anthropic/claude-3-5-sonnet-20240620", "gemini/gemini-2.5-flash"
 
     Returns:
@@ -26,7 +29,7 @@ def llm_setup(model_name: str) -> None:
             "presence_penalty": 0,
         }
     elif "anthropic" in model_name:
-        api_key = os.getenv("ANTHROPIC_API_KEY")    
+        api_key = os.getenv("ANTHROPIC_API_KEY")
         options = {
             "temperature": 0,
             "top_p": 0.9,
@@ -60,35 +63,37 @@ def llm_setup(model_name: str) -> None:
 def check_environment(llm_model: str, search_tool_name: str) -> Dict[str, bool]:
     """Check if required environment variables are set."""
     results = {
-        'llm_key_found': False,
-        'search_key_found': True,  # Default to True for DDG
-        'all_required_found': False
+        "llm_key_found": False,
+        "search_key_found": True,  # Default to True for DDG
+        "all_required_found": False,
     }
-    
+
     # Check API keys
     openai_key = os.getenv("OPENAI_API_KEY")
     anthropic_key = os.getenv("ANTHROPIC_API_KEY")
     gemini_key = os.getenv("GEMINI_API_KEY")
     brave_key = os.getenv("BRAVE_SEARCH_API_KEY")
-    
+
     if "openai" in llm_model:
-        results['llm_key_found'] = bool(openai_key)
+        results["llm_key_found"] = bool(openai_key)
     elif "anthropic" in llm_model:
-        results['llm_key_found'] = bool(anthropic_key)
+        results["llm_key_found"] = bool(anthropic_key)
     elif "gemini" in llm_model:
-        results['llm_key_found'] = bool(gemini_key)
+        results["llm_key_found"] = bool(gemini_key)
     elif "ollama" in llm_model:
-        results['llm_key_found'] = True  # Ollama doesn't need API key
-    
+        results["llm_key_found"] = True  # Ollama doesn't need API key
+
     if search_tool_name == "brave":
-        results['search_key_found'] = bool(brave_key)
-    
-    results['all_required_found'] = results['llm_key_found'] and results['search_key_found']
-    
+        results["search_key_found"] = bool(brave_key)
+
+    results["all_required_found"] = (
+        results["llm_key_found"] and results["search_key_found"]
+    )
+
     return results
 
 
-def get_available_llm_models() -> List[str]: 
+def get_available_llm_models() -> List[str]:
     """Get list of available LLM models."""
     return [
         "openai/gpt-4o-mini",
@@ -110,33 +115,33 @@ def get_available_llm_models() -> List[str]:
 def check_environment_cli(llm_model: str, search_tool_name: str) -> bool:
     """Check if required environment variables are set and display results."""
     print("🔑 Environment Check:")
-    
+
     env_check = check_environment(llm_model, search_tool_name)
-    
+
     if "openai" in llm_model:
-        if env_check['llm_key_found']:
+        if env_check["llm_key_found"]:
             print("✅ OpenAI API Key found")
         else:
             print("❌ OpenAI API Key missing")
             return False
     elif "anthropic" in llm_model:
-        if env_check['llm_key_found']:
+        if env_check["llm_key_found"]:
             print("✅ Anthropic API Key found")
         else:
             print("❌ Anthropic API Key missing")
             return False
     elif "gemini" in llm_model:
-        if env_check['llm_key_found']:
+        if env_check["llm_key_found"]:
             print("✅ Gemini API Key found")
         else:
             print("❌ Gemini API Key missing")
             return False
-    
+
     if search_tool_name == "brave":
-        if env_check['search_key_found']:
+        if env_check["search_key_found"]:
             print("✅ Brave Search API Key found")
         else:
             print("⚠️ Brave Search API Key missing")
             return False
-    
+
     return True
