@@ -7,13 +7,10 @@ It can generate articles using the enhanced article creator and displays the out
 translation versions (English, Korean, and Research summary).
 """
 
-import os
 import sys
 from pathlib import Path
 import time
 from datetime import datetime
-import json
-from typing import Dict, Any, Optional
 
 import click
 

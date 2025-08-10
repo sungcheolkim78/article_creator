@@ -3,10 +3,10 @@
 Simple test script for DDGSearchTool (basic functionality only)
 """
 
-from websearch.ddgsearch import DDGSearchTool, OptimizedDDGSearch
+from websearch.ddgsearch import DDGSearchTool, OptimizedDDGSearch, DDGReACTSearcher
 from websearch.schema import SearchResult
 from typing import List
-
+import dspy
 from utils.llm import llm_setup
 
 
@@ -15,14 +15,7 @@ def show_search_results(qtype: str, query: str, results: List[SearchResult]):
     print(f"Found {len(results)} results:")
 
     for i, result in enumerate(results, 1):
-        print(f"\n--- Result {i} ---")
-        print(f"Title: {result.title}")
-        print(f"URL: {result.url}")
-        print(f"Content: {result.content}")
-        if result.notes:
-            print(f"Notes: {result.notes}")
-        if result.published_time:
-            print(f"Published: {result.published_time}")
+        print(result)
 
 
 def test_basic_search():
@@ -44,10 +37,10 @@ def test_news_search():
     print("Testing news search...")
 
     # Initialize the search tool
-    search_tool = DDGSearchTool(k=2)
+    search_tool = DDGSearchTool(k=3)
 
     # Perform a news search
-    query = "artificial intelligence"
+    query = "Tariff of 2025"
     results = search_tool.search_news(query)
 
     show_search_results("News", query, results)
@@ -61,10 +54,10 @@ def test_optimized_search():
     llm_setup("openai/gpt-4o-mini")
 
     # Initialize the search tool
-    search_tool = OptimizedDDGSearch(k=2)
+    search_tool = OptimizedDDGSearch(k=3)
 
     # Perform an optimized search
-    query = "artificial intelligence"
+    query = "Trends of S&P 500 Index"
     results = search_tool.optimized_search(query)
 
     show_search_results("Optimized", query, results)
@@ -76,7 +69,7 @@ def test_filtered_search():
     print("Testing filtered search...")
 
     # Initialize the optimized search tool (which has search_with_filters)
-    search_tool = OptimizedDDGSearch(k=2)
+    search_tool = OptimizedDDGSearch(k=3)
 
     # Perform a filtered search
     query = "machine learning"
@@ -88,8 +81,27 @@ def test_filtered_search():
     show_search_results("Filtered", query, results)
 
 
+def test_ddg_react_searcher():
+    """Test DDGReACTSearcher"""
+    print("\n" + "=" * 50)
+    print("Testing DDGReACTSearcher...")
+
+    llm_setup("openai/gpt-4o-mini")
+
+    query = "BioBERT"
+    searcher = DDGReACTSearcher(verbose=False)
+    results = searcher(query)
+
+    show_search_results("DDGReACTSearcher", query, results.search_results)
+
+
 if __name__ == "__main__":
-    test_basic_search()
-    test_news_search()
-    test_optimized_search()
-    test_filtered_search()
+    dspy.configure_cache(
+        enable_disk_cache=True,
+        enable_memory_cache=True,
+    )
+    # test_basic_search()
+    # test_news_search()
+    # test_optimized_search()
+    # test_filtered_search()
+    test_ddg_react_searcher()

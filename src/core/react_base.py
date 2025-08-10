@@ -24,7 +24,9 @@ class ReACTStep(dspy.Signature):
     )
     memory_context: str = dspy.InputField(desc="Relevant information from memory")
 
-    action: Literal["search", "research", "fact_check", "analyze", "finish"] = dspy.OutputField()
+    action: Literal["search", "research", "fact_check", "analyze", "finish"] = (
+        dspy.OutputField()
+    )
     action_input: dict = dspy.OutputField(desc="Input parameters for the action.")
 
 
@@ -71,8 +73,8 @@ class ReACTAgent(dspy.Module):
             # Get relevant memory context
             memory_context = self._get_memory_context(goal, actions_taken)
             print()
-            print(click.style(f'⚙️ Iteration {iteration + 1}', fg='green', bold=True))
-            print(click.style(f"Memory Context: {memory_context}", fg='red'))
+            print(click.style(f"⚙️ Iteration {iteration + 1}", fg="green", bold=True))
+            print(click.style(f"Memory Context: {memory_context}", fg="red"))
 
             # Get next action from ReACT reasoning
             react_output = self.react_step(
@@ -82,9 +84,11 @@ class ReACTAgent(dspy.Module):
                 memory_context=memory_context,
             )
 
-            print(click.style(f'💡 Thought: {react_output.reasoning}', fg='green'))
-            print(click.style(f'🔍 Action: {react_output.action}', fg='green'))
-            print(click.style(f'🔍 Action Input: {react_output.action_input}', fg='green'))
+            print(click.style(f"💡 Thought: {react_output.reasoning}", fg="green"))
+            print(click.style(f"🔍 Action: {react_output.action}", fg="green"))
+            print(
+                click.style(f"🔍 Action Input: {react_output.action_input}", fg="green")
+            )
 
             # Execute the action
             action_result = self._execute_action(
@@ -123,7 +127,9 @@ class ReACTAgent(dspy.Module):
             "memory_summary": self.memory.get_memory_summary(),
         }
 
-    def _get_memory_context(self, goal: str, actions_taken: List[Dict[str, Any]]) -> str:
+    def _get_memory_context(
+        self, goal: str, actions_taken: List[Dict[str, Any]]
+    ) -> str:
         """Get relevant context from memory for the current goal and actions."""
         context_parts = []
 
@@ -156,7 +162,11 @@ class ReACTAgent(dspy.Module):
         if relevant_findings:
             context_parts.append("Relevant research findings:")
             for finding in relevant_findings[:2]:  # Limit to 2 findings
-                finding_str = finding['finding'].get('answer', 'Finding available')[:200].replace('\n\n', '\n')
+                finding_str = (
+                    finding["finding"]
+                    .get("answer", "Finding available")[:200]
+                    .replace("\n\n", "\n")
+                )
                 context_parts.append(f"- {finding_str}...")
 
         # Get relevant context
@@ -214,15 +224,17 @@ class ReACTAgent(dspy.Module):
 
             # Store the search result with additional metadata
             metadata = {
-                "num_results": num_results, 
+                "num_results": num_results,
                 "action": action,
                 "query": action_input.get("query", ""),
                 "broader_query": result.get("broader_query", ""),
-                "note": result.get("note", "")
+                "note": result.get("note", ""),
             }
 
             self.memory.add_search_result(
-                query=action_input.get("query", ""), results=results_dict, metadata=metadata
+                query=action_input.get("query", ""),
+                results=results_dict,
+                metadata=metadata,
             )
 
             # Extract and store sources
@@ -260,8 +272,6 @@ class ReACTAgent(dspy.Module):
                     "sources": result.get("sources", []),
                 },
             )
-
-
 
     def _execute_action(self, action: str, action_input: str) -> Dict[str, Any]:
         """Execute the specified action with given input."""
@@ -434,7 +444,7 @@ class ReACTAgent(dspy.Module):
 
         formatted = []
         # Only show last 3 actions to avoid context overflow
-        for action in actions[-3:]:  
+        for action in actions[-3:]:
             formatted.append(
                 f"Action {action['iteration']}: {action['action']} - "
                 f"Input: {action['action_input'][:200]}... - "

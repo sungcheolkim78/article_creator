@@ -98,7 +98,7 @@ def save_article_to_file(
     translated_file = output_path / f"{topic_slug}-{lang_slug}-{timestamp}.md"
     with open(translated_file, "w", encoding="utf-8") as f:
         f.write(f"# {article_data.get('title', 'Untitled Article')}\n\n")
-        for section in article_data.get("sections_other", []):
+        for section in article_data.get("sections_translated", []):
             f.write(section)
             f.write("\n\n")
 

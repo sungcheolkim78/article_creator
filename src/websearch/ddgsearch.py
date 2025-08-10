@@ -1,6 +1,8 @@
 import dspy
+import click
+from dspy.signatures import make_signature
 from ddgs import DDGS
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any, Literal
 from websearch.schema import SearchResult
 import logging
 from dspy.clients.cache import request_cache
@@ -8,6 +10,8 @@ from dspy.clients.cache import request_cache
 logger = logging.getLogger("ddg_search")
 
 logging.getLogger("primp").setLevel(logging.WARNING)
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("openai").setLevel(logging.WARNING)
 
 
 class DDGSearchTool(dspy.Retrieve):
@@ -68,7 +72,10 @@ class OptimizedDDGSearch(DDGSearchTool):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.query_optimizer = dspy.ChainOfThought(
-            "original_query -> optimized_search_query"
+            make_signature(
+                "original_query -> optimized_search_query",
+                "Optimizes search queries for DuckDuckGo. Do not use AND or OR in the optimized query.",
+            )
         )
 
     def forward(self, query: str, k: Optional[int] = None) -> List[str]:
@@ -108,9 +115,7 @@ class OptimizedDDGSearch(DDGSearchTool):
 
 
 @request_cache()
-def get_news(
-    query: str, k: int, options: dict = {}
-) -> List[SearchResult]:
+def get_news(query: str, k: int, options: dict = {}) -> List[SearchResult]:
     # Use DuckDuckGo news search
     results = DDGS().news(query, max_results=k, **options)
 
@@ -118,10 +123,13 @@ def get_news(
         SearchResult(
             title=item.get("title", ""),
             url=item.get("url", ""),
-            content=item.get("body", ""),
+            snippet=item.get("body", ""),
             published_time=item.get("date", None),
             notes=item.get("source", None),
-        ) for item in results]
+            source="news",
+        )
+        for item in results
+    ]
 
 
 @request_cache()
@@ -133,9 +141,106 @@ def get_text(query: str, k: int, options: dict = {}) -> List[SearchResult]:
         SearchResult(
             title=item.get("title", ""),
             url=item.get("href", ""),
-            content=item.get("body", ""),
+            snippet=item.get("body", ""),
             published_time=None,
             notes=None,
+            source="web",
         )
         for item in results
     ]
+
+
+def search_news(query: str) -> List[SearchResult]:
+    return [str(item) for item in get_news(query, k=5)]
+
+
+def search_web(query: str) -> List[SearchResult]:
+    return [str(item) for item in get_text(query, k=5)]
+
+
+class DDGSignature(dspy.Signature):
+    """Find all relevant information to verify (or refute) the claim."""
+
+    claim: str = dspy.InputField()
+    results: str = dspy.OutputField(desc="The search results summary")
+
+
+class DDGSearchResult(dspy.Signature):
+    """Converts the observation to a list of SearchResult objects"""
+
+    observation: str = dspy.InputField(desc="The observation")
+    results: List[SearchResult] = dspy.OutputField(desc="The search results")
+
+
+class DDGRelevanceChecker(dspy.Signature):
+    """Checks if the observation is relevant to the claim"""
+
+    claim: str = dspy.InputField()
+    observation: str = dspy.InputField()
+    relevant: bool = dspy.OutputField(
+        desc="Whether the observation is relevant to the claim"
+    )
+
+
+class DDGCategory(dspy.Signature):
+    """Categorizes the text into claim, question, or topic"""
+
+    text: str = dspy.InputField()
+    category: Literal["claim", "question", "topic"] = dspy.OutputField(
+        desc="The category of the text"
+    )
+
+
+class DDGReACTSearcher(dspy.Module):
+    def __init__(self, verbose: bool = False):
+        self.react = dspy.ReAct(
+            DDGSignature, tools=[search_web, search_news], max_iters=10
+        )
+        self.convert = dspy.Predict(DDGSearchResult)
+        self.check = dspy.Predict(DDGRelevanceChecker)
+        self.category = dspy.Predict(DDGCategory)
+        self.verbose = verbose
+
+    def forward(self, claim: str) -> list[SearchResult]:
+        category = self.category(text=claim).category
+        if self.verbose:
+            print(click.style(f"Category: {category}", fg="yellow"))
+
+        result = self.react(claim=claim)
+
+        observations = []
+        for k, v in result.trajectory.items():
+            if self.verbose:
+                print(click.style(k, fg="blue"))
+                print(click.style(v, fg="green"))
+                print()
+
+            if k.startswith("observation"):
+                results = self.convert(observation=v).results
+                for item in results:
+                    if self.check(claim=claim, observation=item.title).relevant:
+                        observations.append(item)
+
+        if self.verbose:
+            print(click.style(result.reasoning, fg="yellow"))
+            print(click.style(result.results, fg="green"))
+
+        return dspy.Prediction(
+            results=result.results,
+            summary=result.reasoning,
+            search_results=observations,
+        )
+
+
+def tool_search_web(query: str) -> str:
+    searcher = DDGReACTSearcher(verbose=False)
+    output = searcher(query)
+
+    memory_context = "## Web Search Results\n"
+    for item in output.search_results:
+        memory_context += str(item)
+    memory_context += "\n## Web Search Summary\n"
+    memory_context += output.summary
+    memory_context += output.results
+
+    return memory_context

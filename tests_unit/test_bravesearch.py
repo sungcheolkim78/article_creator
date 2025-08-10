@@ -59,7 +59,6 @@ def test_optimized_search():
     print("\n" + "=" * 50)
     print("Testing optimized search...")
 
-
     # Initialize the search tool
     search_tool = OptimizedBraveSearch(k=2)
 

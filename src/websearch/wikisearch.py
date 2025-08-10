@@ -2,18 +2,22 @@ import dspy
 import logging
 import click
 
-logging.getLogger('httpx').setLevel(logging.WARNING)
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 DOCS = {}
 
 
 def search(query: str, k: int) -> list[str]:
-    results = dspy.ColBERTv2(url='http://20.102.90.50:2017/wiki17_abstracts')(query, k=k)
-    results = [x['text'] for x in results]
+    results = dspy.ColBERTv2(url="http://20.102.90.50:2017/wiki17_abstracts")(
+        query, k=k
+    )
+    results = [x["text"] for x in results]
 
     for result in results:
         title, text = result.split(" | ", 1)
-        title = title.replace("&amp;", "&")     # Replace &amp; with & to avoid HTML parsing errors
+        title = title.replace(
+            "&amp;", "&"
+        )  # Replace &amp; with & to avoid HTML parsing errors
         DOCS[title] = text
 
     return results
@@ -41,9 +45,13 @@ def lookup_wikipedia(title: str) -> str:
 
 class WikiReACTSearcher(dspy.Module):
     def __init__(self):
-        instructions = "Find all Wikipedia titles relevant to verifying (or refuting) the claim."
+        instructions = (
+            "Find all Wikipedia titles relevant to verifying (or refuting) the claim."
+        )
         signature = dspy.Signature("claim -> titles: list[str]", instructions)
-        self.react = dspy.ReAct(signature, tools=[search_wikipedia, lookup_wikipedia], max_iters=20)
+        self.react = dspy.ReAct(
+            signature, tools=[search_wikipedia, lookup_wikipedia], max_iters=20
+        )
 
     def forward(self, claim: str) -> list[str]:
         # Replace & with &amp; to avoid HTML parsing errors

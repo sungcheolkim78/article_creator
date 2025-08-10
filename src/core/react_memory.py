@@ -12,13 +12,13 @@ class ReactMemory:
         self.memory_store = {
             "search_results": {},  # Store search results by query hash
             "research_findings": {},  # Store research findings by topic
-            "fact_checks": {},     # Store fact verification results
-            "context": [],         # Store contextual information
-            "sources": {},         # Store source URLs and metadata
-            "insights": [],        # Store key insights and learnings
+            "fact_checks": {},  # Store fact verification results
+            "context": [],  # Store contextual information
+            "sources": {},  # Store source URLs and metadata
+            "insights": [],  # Store key insights and learnings
             "action_history": [],  # Store action patterns and outcomes
         }
-        self.access_count = {}     # Track access frequency for memory management
+        self.access_count = {}  # Track access frequency for memory management
 
     def add_search_result(self, query: str, results: List[Dict], metadata: Dict = None):
         """Add search results to memory with query as key."""

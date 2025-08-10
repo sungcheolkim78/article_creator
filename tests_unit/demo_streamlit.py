@@ -9,6 +9,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+
 def print_demo_info():
     """Print demo information and instructions."""
     print("🎯 Enhanced Article Creator - Streamlit Demo")
@@ -48,11 +49,12 @@ def print_demo_info():
     print("   - Search: DuckDuckGo")
     print()
 
+
 def check_environment():
     """Check if the environment is properly set up."""
     print("🔍 Environment Check:")
     print("-" * 30)
-    
+
     # Check if app.py exists
     app_path = Path("src/app.py")
     if app_path.exists():
@@ -60,27 +62,29 @@ def check_environment():
     else:
         print("❌ Streamlit app not found")
         return False
-    
+
     # Check if dependencies are installed
     try:
         import streamlit
+
         print(f"✅ Streamlit {streamlit.__version__} installed")
     except ImportError:
         print("❌ Streamlit not installed")
         return False
-    
+
     # Check for API keys
     import os
     from dotenv import load_dotenv
+
     load_dotenv()
-    
+
     api_keys = {
         "OPENAI_API_KEY": "OpenAI",
-        "ANTHROPIC_API_KEY": "Anthropic", 
+        "ANTHROPIC_API_KEY": "Anthropic",
         "GEMINI_API_KEY": "Gemini",
-        "BRAVE_SEARCH_API_KEY": "Brave Search"
+        "BRAVE_SEARCH_API_KEY": "Brave Search",
     }
-    
+
     found_keys = []
     for key, name in api_keys.items():
         if os.getenv(key):
@@ -88,13 +92,14 @@ def check_environment():
             found_keys.append(name)
         else:
             print(f"⚠️  {name} API key not found")
-    
+
     if not found_keys:
         print("❌ No LLM API keys found! Please set at least one API key in .env file")
         return False
-    
+
     print(f"✅ Environment ready! Found API keys for: {', '.join(found_keys)}")
     return True
+
 
 def run_demo():
     """Run the Streamlit demo."""
@@ -102,26 +107,35 @@ def run_demo():
     print("🌐 The application will open in your browser at http://localhost:8501")
     print("⏹️  Press Ctrl+C to stop the application")
     print("-" * 60)
-    
+
     try:
         # Run the Streamlit application
-        subprocess.run([
-            "uv", "run", "streamlit", "run", "src/app.py",
-            "--server.port", "8501",
-            "--server.address", "localhost"
-        ])
+        subprocess.run(
+            [
+                "uv",
+                "run",
+                "streamlit",
+                "run",
+                "src/app.py",
+                "--server.port",
+                "8501",
+                "--server.address",
+                "localhost",
+            ]
+        )
     except KeyboardInterrupt:
         print("\n👋 Demo stopped by user.")
     except Exception as e:
         print(f"❌ Error running demo: {e}")
         return False
-    
+
     return True
+
 
 def main():
     """Main demo function."""
     print_demo_info()
-    
+
     # Check environment
     if not check_environment():
         print("\n❌ Environment check failed. Please fix the issues above.")
@@ -130,12 +144,12 @@ def main():
         print("2. Create .env file with API keys")
         print("3. Run this demo again")
         sys.exit(1)
-    
+
     print("\n✅ Environment is ready!")
-    
+
     # Ask user if they want to continue
     response = input("\n🚀 Start the Streamlit application? (y/n): ").lower().strip()
-    if response in ['y', 'yes', '']:
+    if response in ["y", "yes", ""]:
         run_demo()
     else:
         print("👋 Demo cancelled. You can run the application later with:")
@@ -143,5 +157,6 @@ def main():
         print("   or")
         print("   uv run streamlit run src/app.py")
 
+
 if __name__ == "__main__":
-    main() 
+    main()

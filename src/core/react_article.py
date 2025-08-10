@@ -66,9 +66,9 @@ class ArticleReACTAgent(ReACTAgent):
             memory_context=memory_context,
         )
 
-        print(click.style(f"\nArticle ReACT Plan:", fg='blue', bold=True))
-        print(click.style(f"[Strategy]: {react_plan.research_strategy}", fg='blue'))
-        print(click.style(f"[Action Plan]: {react_plan.action_plan}", fg='blue'))
+        print(click.style(f"\nArticle ReACT Plan:", fg="blue", bold=True))
+        print(click.style(f"[Strategy]: {react_plan.research_strategy}", fg="blue"))
+        print(click.style(f"[Action Plan]: {react_plan.action_plan}", fg="blue"))
 
         # Phase 2: Execute research plan using ReACT
         research_goal = f"""
@@ -94,7 +94,9 @@ Use the research findings to create detailed, factual content.
             synthesis_goal, max_iterations=self.synthesis_max_iterations
         )
 
-        total_actions = len(research_results["actions_taken"]) + len(synthesis_results["actions_taken"])
+        total_actions = len(research_results["actions_taken"]) + len(
+            synthesis_results["actions_taken"]
+        )
 
         return {
             "topic": topic,

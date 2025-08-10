@@ -1,0 +1,30 @@
+import dspy
+from agents.planner import planner_tool
+from utils.llm import llm_setup
+
+
+def test_planner():
+    """Test the planner tool"""
+    llm_setup("openai/gpt-4o-mini")
+
+    topic = "The benefits of using React in web development"
+    current_outline = None
+    research_gaps = ""
+    available_tools = ""
+    memory_context = ""
+    result = planner_tool(
+        topic, current_outline, research_gaps, available_tools, memory_context
+    )
+
+    print("-" * 100)
+    print(result.research_strategy)
+    print("-" * 100)
+    print(result.action_plan)
+
+
+if __name__ == "__main__":
+    dspy.configure_cache(
+        enable_disk_cache=True,
+        enable_memory_cache=True,
+    )
+    test_planner()

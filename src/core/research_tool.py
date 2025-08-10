@@ -39,9 +39,7 @@ class ResearchTool(dspy.Module):
         )
 
         # Synthesize comprehensive answer
-        synthesis = self.synthesizer(
-            question=question, search_results=search_content
-        )
+        synthesis = self.synthesizer(question=question, search_results=search_content)
 
         return {
             "question": question,
