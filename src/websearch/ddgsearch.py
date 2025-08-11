@@ -1,11 +1,13 @@
 import dspy
+import re
 import click
 from dspy.signatures import make_signature
-from ddgs import DDGS
+from ddgs import DDGS, exceptions as ddgs_exceptions
 from typing import List, Dict, Optional, Any, Literal
 from websearch.schema import SearchResult
 import logging
 from dspy.clients.cache import request_cache
+import time
 
 logger = logging.getLogger("ddg_search")
 
@@ -117,7 +119,11 @@ class OptimizedDDGSearch(DDGSearchTool):
 @request_cache()
 def get_news(query: str, k: int, options: dict = {}) -> List[SearchResult]:
     # Use DuckDuckGo news search
-    results = DDGS().news(query, max_results=k, **options)
+    try:
+        results = DDGS().news(query, max_results=k, **options)
+    except ddgs_exceptions.DDGSException as e:
+        logger.error(f"Error searching news: {e}")
+        results = []
 
     return [
         SearchResult(
@@ -135,7 +141,11 @@ def get_news(query: str, k: int, options: dict = {}) -> List[SearchResult]:
 @request_cache()
 def get_text(query: str, k: int, options: dict = {}) -> List[SearchResult]:
     # Use DuckDuckGo search
-    results = DDGS().text(query, max_results=k, **options)
+    try:
+        results = DDGS().text(query, max_results=k, **options)
+    except ddgs_exceptions.DDGSException as e:
+        logger.error(f"Error searching text: {e}")
+        results = []
 
     return [
         SearchResult(
@@ -150,26 +160,19 @@ def get_text(query: str, k: int, options: dict = {}) -> List[SearchResult]:
     ]
 
 
-def search_news(query: str) -> List[SearchResult]:
-    return [str(item) for item in get_news(query, k=5)]
+def search_news(query: str, k: int = 3) -> List[SearchResult]:
+    return [str(item) for item in get_news(query, k=k)]
 
 
-def search_web(query: str) -> List[SearchResult]:
-    return [str(item) for item in get_text(query, k=5)]
+def search_web(query: str, k: int = 3) -> List[SearchResult]:
+    return [str(item) for item in get_text(query, k=k)]
 
 
 class DDGSignature(dspy.Signature):
     """Find all relevant information to verify (or refute) the claim."""
 
     claim: str = dspy.InputField()
-    results: str = dspy.OutputField(desc="The search results summary")
-
-
-class DDGSearchResult(dspy.Signature):
-    """Converts the observation to a list of SearchResult objects"""
-
-    observation: str = dspy.InputField(desc="The observation")
-    results: List[SearchResult] = dspy.OutputField(desc="The search results")
+    results: list[str] = dspy.OutputField(desc="The search results summary")
 
 
 class DDGRelevanceChecker(dspy.Signature):
@@ -196,18 +199,19 @@ class DDGReACTSearcher(dspy.Module):
         self.react = dspy.ReAct(
             DDGSignature, tools=[search_web, search_news], max_iters=10
         )
-        self.convert = dspy.Predict(DDGSearchResult)
         self.check = dspy.Predict(DDGRelevanceChecker)
         self.category = dspy.Predict(DDGCategory)
         self.verbose = verbose
 
     def forward(self, claim: str) -> list[SearchResult]:
+        start_time = time.time()
         category = self.category(text=claim).category
         if self.verbose:
             print(click.style(f"Category: {category}", fg="yellow"))
 
         result = self.react(claim=claim)
 
+        iterations = 1
         observations = []
         for k, v in result.trajectory.items():
             if self.verbose:
@@ -216,31 +220,60 @@ class DDGReACTSearcher(dspy.Module):
                 print()
 
             if k.startswith("observation"):
-                results = self.convert(observation=v).results
+                results = self.convert(observation=v)
+                if not results:
+                    continue
                 for item in results:
                     if self.check(claim=claim, observation=item.title).relevant:
                         observations.append(item)
+                iterations += 1
 
         if self.verbose:
             print(click.style(result.reasoning, fg="yellow"))
             print(click.style(result.results, fg="green"))
 
+        execution_time = time.time() - start_time
+        print(f"DDGReACTSearcher|{claim}|{category}|{iterations} Iterations|{len(observations)} Results|{execution_time:.2f}s")
         return dspy.Prediction(
-            results=result.results,
-            summary=result.reasoning,
+            summary=result.results,
+            reasoning=result.reasoning,
             search_results=observations,
         )
 
+    def convert(self, observation: list[str] | str) -> List[SearchResult]:
+        results = []
+        if not isinstance(observation, list):
+            return results
 
-def tool_search_web(query: str) -> str:
-    searcher = DDGReACTSearcher(verbose=False)
+        for item in observation:
+            # Extract title using regex pattern
+            title_match = re.search(r"- Title: (.*)", item)
+            title = title_match.group(1) if title_match else ""
+            url_match = re.search(r"- URL: (.*)", item)
+            url = url_match.group(1) if url_match else ""
+            snippet_match = re.search(r"- Content: (.*)", item)
+            snippet = snippet_match.group(1) if snippet_match else ""
+
+            results.append(SearchResult(
+                title=title, 
+                url=url, 
+                snippet=snippet))
+
+        return results
+
+
+
+def tool_search_web(query: str, verbose: bool = False) -> str:
+    searcher = DDGReACTSearcher(verbose=verbose)
     output = searcher(query)
 
-    memory_context = "## Web Search Results\n"
-    for item in output.search_results:
-        memory_context += str(item)
-    memory_context += "\n## Web Search Summary\n"
-    memory_context += output.summary
-    memory_context += output.results
+    # Format the search results and summary
+    memory_context = f"## Web Search Results on {query}\n\n"
+    for i, item in enumerate(output.search_results):
+        memory_context += str(item).replace("=====", f"### Web Search Result {i+1} ###")
+        memory_context += "\n"
+    memory_context += f"\n## Web Search Summary on {query}\n\n"
+    memory_context += '\n'.join([f"- {item}" for item in output.summary])
+    memory_context += "\n"
 
     return memory_context

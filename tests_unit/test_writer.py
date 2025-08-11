@@ -3,15 +3,15 @@ from datetime import datetime
 
 from agents.writer import ArticleWriter
 from utils.llm import llm_setup
-from utils.text import display_article_content, save_article_to_file
+from utils.text import save_article_to_file
 
 
 def test_writer():
-    llm_setup("openrouter/openai/gpt-oss-20b")
+    llm_setup("openai/gpt-4o-mini")
 
     writer = ArticleWriter(verbose=True)
 
-    topic = "TypeScript"
+    topic = "Lovable AI"
     language = "Korean"
     output = writer(topic=topic, language=language)
 
@@ -21,7 +21,7 @@ def test_writer():
         "language": language,
         "mode": "enhanced",
         "use_react": True,
-        "llm_model": "openrouter/openai/gpt-oss-20b",
+        "llm_model": "openai/gpt-4o-mini",
         "search_tool_name": "ddg",
         "generation_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     }

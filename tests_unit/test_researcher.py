@@ -8,8 +8,8 @@ def test_researcher():
     """Test the researcher tool"""
     llm_setup("openai/gpt-4o-mini")
 
-    topic = "The benefits of using React in web development"
-    output_planner = planner_tool(topic)
+    topic = "Lovable AI"
+    output_planner = planner_tool(topic, verbose=True)
 
     researcher = ArticleReACTResearcher(
         output_planner.research_strategy,
@@ -21,6 +21,7 @@ def test_researcher():
         outline=output_planner.outline,
         memory_content=output_planner.memory_context)
 
+    print(output_researcher.final_title)
     print("-" * 100)
     print(output_researcher.final_outline)
     print("-" * 100)

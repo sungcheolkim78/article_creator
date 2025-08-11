@@ -14,7 +14,7 @@ class SearchResult:
     published_time: Optional[str] = None
 
     def __str__(self):
-        msg = f"### {self.source.upper()} Search Result\n\n"
+        msg = f"=====\n"
         msg += f"- Title: {self.title}\n"
         msg += f"- URL: {self.url}\n"
         msg += f"- Content: {self.snippet}"

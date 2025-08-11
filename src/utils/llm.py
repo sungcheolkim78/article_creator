@@ -15,12 +15,19 @@ def llm_setup(model_name: str) -> None:
 
     Args:
         model_name: The name of the model to use. examples: "openai/gpt-4o-mini",
-        "anthropic/claude-3-5-sonnet-20240620", "gemini/gemini-2.5-flash"
+        "anthropic/claude-3-5-sonnet-20240620", "gemini/gemini-2.5-flash",
+        "openrouter/openai/gpt-oss-20b"
 
     Returns:
         None
     """
-    if "openai" in model_name:
+    if "openrouter" in model_name:
+        api_key = os.getenv("OPENROUTER_API_KEY")
+        options = {
+            "temperature": 0.1,
+            "top_p": 0.9,
+        }
+    elif "openai" in model_name:
         api_key = os.getenv("OPENAI_API_KEY")
         options = {
             "temperature": 0,
@@ -72,9 +79,12 @@ def check_environment(llm_model: str, search_tool_name: str) -> Dict[str, bool]:
     openai_key = os.getenv("OPENAI_API_KEY")
     anthropic_key = os.getenv("ANTHROPIC_API_KEY")
     gemini_key = os.getenv("GEMINI_API_KEY")
+    openrouter_key = os.getenv("OPENROUTER_API_KEY")
     brave_key = os.getenv("BRAVE_SEARCH_API_KEY")
 
-    if "openai" in llm_model:
+    if "openrouter" in llm_model:
+        results["llm_key_found"] = bool(openrouter_key)
+    elif "openai" in llm_model:
         results["llm_key_found"] = bool(openai_key)
     elif "anthropic" in llm_model:
         results["llm_key_found"] = bool(anthropic_key)
@@ -118,7 +128,13 @@ def check_environment_cli(llm_model: str, search_tool_name: str) -> bool:
 
     env_check = check_environment(llm_model, search_tool_name)
 
-    if "openai" in llm_model:
+    if "openrouter" in llm_model:
+        if env_check["llm_key_found"]:
+            print("✅ OpenRouter API Key found")
+        else:
+            print("❌ OpenRouter API Key missing")
+            return False
+    elif "openai" in llm_model:
         if env_check["llm_key_found"]:
             print("✅ OpenAI API Key found")
         else:

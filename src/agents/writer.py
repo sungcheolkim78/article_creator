@@ -14,10 +14,7 @@ class ArticleOutline(dspy.Signature):
         desc="Initial outline for the article"
     )
     research_findings: str = dspy.InputField(
-        desc="Key research findings and current information"
-    )
-    research_sources: str = dspy.InputField(
-        desc="credible sources and citations"
+        desc="Key research findings and current information with sources and citations"
     )
     target_audience: str = dspy.InputField(default="general audience")
 
@@ -76,19 +73,15 @@ class ArticleWriter(dspy.Module):
     def forward(self, topic: str, language: str = "Korean") -> dspy.Prediction:
         """Write an article using the outline and content and sources."""
         # Step 1: Plan the article
-<<<<<<< HEAD
         print(f"Planning article: {topic}")
-        output_planner = planner_tool(topic, verbose=False)
-=======
         output_planner = planner_tool(topic, verbose=True)
->>>>>>> 6e66a55af84ad1f528d0659a19ffb46fdfa7a8de
 
         # Step 2: Research the article
         print("Researching article...")
         researcher = ArticleReACTResearcher(
             output_planner.research_strategy,
             output_planner.action_plan,
-            verbose=False,
+            verbose=True,
         )
         output_researcher = researcher(
             topic=topic,
@@ -97,12 +90,10 @@ class ArticleWriter(dspy.Module):
 
         # Step 3: Generate the outline
         print("Generating outline...")
-        initial_outline = json.loads(output_researcher.final_outline)
         outline = self.build_outline(
             topic=topic, 
-            initial_outline=initial_outline["sections"][0], 
+            initial_outline=output_researcher.final_outline,
             research_findings=output_researcher.final_content, 
-            research_sources=output_researcher.final_sources,
             target_audience=self.audience)
 
         # Phase 3: Generate sections with research integration
@@ -116,7 +107,7 @@ class ArticleWriter(dspy.Module):
             print(f"Generating section: {heading}")
 
             section_content = self.get_related_content(topic=heading, content=output_researcher.final_content).topic_related_content
-            section_sources = self.get_related_sources(topic=heading, sources=output_researcher.final_sources).topic_related_sources
+            section_sources = self.get_related_sources(topic=heading, sources=output_researcher.final_content).topic_related_sources
 
             # Generate section content
             section = self.draft_section(

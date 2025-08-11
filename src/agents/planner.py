@@ -35,18 +35,21 @@ class ArticleOutline(dspy.Signature):
 
     topic: str = dspy.InputField()
     content: str = dspy.InputField(desc="The content of the article")
-    outline: dict[str, Any] = dspy.OutputField(
-        desc="Comprehensive outline for an article"
+
+    title: str = dspy.OutputField()
+    sections: list[str] = dspy.OutputField()
+    section_subheadings: dict[str, list[str]] = dspy.OutputField(
+        desc="mapping from section headings to subheadings"
     )
 
 
 class ResearchGap(dspy.Signature):
-    """Given a outline and content, generate a research gap for the comprehensive article."""
+    """Given a outline and content, generate a information gap for the comprehensive article."""
 
     topic: str = dspy.InputField()
     outline: str = dspy.InputField()
     content: str = dspy.InputField()
-    research_gap: str = dspy.OutputField(desc="The research gap for the comprehensive article")
+    info_gap: str = dspy.OutputField(desc="The information gap for the comprehensive article")
 
 
 def planner_tool(
@@ -61,17 +64,18 @@ def planner_tool(
 
     if verbose:
         print(click.style(f"Step 1: Search Topic - {topic}", fg="blue"))
-    memory_context += tool_search_web(topic)
+    memory_context += tool_search_web(topic, verbose=verbose)
 
     # Generate the outline if not provided
     if current_outline is None:
         outline = dspy.ChainOfThought(ArticleOutline)(
             topic=topic, content=memory_context
-        ).outline
+        )
+        outline_str = json.dumps(outline.section_subheadings)
     else:
         outline = current_outline
+        outline_str = json.dumps(outline)
 
-    outline_str = json.dumps(outline)
     if verbose:
         print(click.style(f"Step 2: Generate Outline - {outline_str}", fg="blue"))
 
@@ -79,7 +83,7 @@ def planner_tool(
     if research_gaps == "":
         research_gap = dspy.ChainOfThought(ResearchGap)(
             topic=topic, outline=outline_str, content=memory_context
-        ).research_gap
+        ).info_gap
     else:
         research_gap = research_gaps
     if verbose:
@@ -103,8 +107,7 @@ def planner_tool(
     return dspy.Prediction(
         research_strategy=output.research_strategy,
         action_plan=output.action_plan,
-        outline=outline,
-        research_gap=research_gap,
-        available_tools=available_tools,
+        title=outline.title,
+        outline=outline.section_subheadings,
         memory_context=memory_context,
     )

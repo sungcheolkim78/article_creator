@@ -3,7 +3,7 @@
 Simple test script for DDGSearchTool (basic functionality only)
 """
 
-from websearch.ddgsearch import DDGSearchTool, OptimizedDDGSearch, DDGReACTSearcher
+from websearch.ddgsearch import DDGSearchTool, OptimizedDDGSearch, DDGReACTSearcher, tool_search_web
 from websearch.schema import SearchResult
 from typing import List
 import dspy
@@ -13,10 +13,8 @@ from utils.llm import llm_setup
 def show_search_results(qtype: str, query: str, results: List[SearchResult]):
     print(f"{qtype} Query: {query}")
     print(f"Found {len(results)} results:")
-
-    for i, result in enumerate(results, 1):
+    for result in results:
         print(result)
-
 
 def test_basic_search():
     """Test basic search functionality"""
@@ -51,8 +49,6 @@ def test_optimized_search():
     print("\n" + "=" * 50)
     print("Testing optimized search...")
 
-    llm_setup("openai/gpt-4o-mini")
-
     # Initialize the search tool
     search_tool = OptimizedDDGSearch(k=3)
 
@@ -86,16 +82,20 @@ def test_ddg_react_searcher():
     print("\n" + "=" * 50)
     print("Testing DDGReACTSearcher...")
 
-    llm_setup("openai/gpt-4o-mini")
-
-    query = "BioBERT"
-    searcher = DDGReACTSearcher(verbose=False)
+    query = "Lovable AI"
+    searcher = DDGReACTSearcher(verbose=True)
     results = searcher(query)
 
     show_search_results("DDGReACTSearcher", query, results.search_results)
+    print(results.reasoning)
+    print(results.summary)
 
 
 if __name__ == "__main__":
+    # llm_setup("openrouter/x-ai/grok-3-mini")
+    # llm_setup("openrouter/google/gemini-2.5-flash-lite")
+    # llm_setup("openai/gpt-4o-mini")
+    llm_setup("gemini/gemini-2.5-flash-lite")
     dspy.configure_cache(
         enable_disk_cache=True,
         enable_memory_cache=True,
@@ -104,4 +104,7 @@ if __name__ == "__main__":
     # test_news_search()
     # test_optimized_search()
     # test_filtered_search()
-    test_ddg_react_searcher()
+    # test_ddg_react_searcher()
+
+    txt = tool_search_web("Lovable AI", verbose=False)
+    print(txt)
