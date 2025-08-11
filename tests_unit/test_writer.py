@@ -11,19 +11,10 @@ def test_writer():
 
     writer = ArticleWriter(verbose=True)
 
-    topic = "The benefits of using React in web development"
+    topic = "TypeScript"
     language = "Korean"
     output = writer(topic=topic, language=language)
 
-    print(output.title)
-    print(output.sections_en)
-    print(output.sections_translated)
-    print(output.research_summary)
-    print(output.key_sources)
-
-    display_article_content(output, language)
-
-    # Save to files if not display-only
     output_dir = "data/articles"
     generation_params = {
         "topic": topic,

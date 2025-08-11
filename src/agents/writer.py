@@ -37,7 +37,6 @@ class ArticleSection(dspy.Signature):
     research_content: str = dspy.InputField(
         desc="relevant research findings for this section"
     )
-    sources: str = dspy.InputField(desc="credible sources and citations")
 
     content: str = dspy.OutputField(
         desc="markdown-formatted section with proper citations"
@@ -67,6 +66,8 @@ class ArticleWriter(dspy.Module):
         self.draft_section = dspy.ChainOfThought(ArticleSection)
         self.fact_checker = dspy.ChainOfThought(ArticleFactCheck)
         self.translate = dspy.Predict(Translator)
+        self.get_related_content = dspy.Predict("topic, content -> topic_related_content")
+        self.get_related_sources = dspy.Predict("topic, sources -> topic_related_sources")
 
         self.audience = audience
         self.verbose = verbose
@@ -74,7 +75,7 @@ class ArticleWriter(dspy.Module):
     def forward(self, topic: str, language: str = "Korean") -> dspy.Prediction:
         """Write an article using the outline and content and sources."""
         # Step 1: Plan the article
-        output_planner = planner_tool(topic, verbose=False)
+        output_planner = planner_tool(topic, verbose=True)
 
         # Step 2: Research the article
         researcher = ArticleReACTResearcher(
@@ -102,18 +103,20 @@ class ArticleWriter(dspy.Module):
         for heading, subheadings in outline.section_subheadings.items():
             print(f"Generating section: {heading}")
 
+            section_content = self.get_related_content(topic=heading, content=output_researcher.final_content).topic_related_content
+            section_sources = self.get_related_sources(topic=heading, sources=output_researcher.final_sources).topic_related_sources
+
             # Generate section content
             section = self.draft_section(
                 topic=outline.title,
                 section_heading=f"## {heading}",
                 section_subheadings=[f"### {sub}" for sub in subheadings],
-                research_content=output_researcher.final_content,
-                sources=output_researcher.final_sources,
+                research_content=section_content,
             )
 
             # Fact-check the section
             fact_checked = self.fact_checker(
-                content=section.content, sources=output_researcher.final_sources
+                content=section.content, sources=section_sources
             )
 
             section_en = fact_checked.verified_content
@@ -126,6 +129,7 @@ class ArticleWriter(dspy.Module):
                 sections_translated.append(section_en)
 
             sections_en.append(section_en)
+            print(sections_translated[-1])
 
         return dspy.Prediction(
             title=outline.title,
