@@ -1,4 +1,5 @@
 import dspy
+import json
 from agents.planner import planner_tool
 from agents.researcher import ArticleReACTResearcher
 from utils.signatures import Translator
@@ -74,9 +75,11 @@ class ArticleWriter(dspy.Module):
     def forward(self, topic: str, language: str = "Korean") -> dspy.Prediction:
         """Write an article using the outline and content and sources."""
         # Step 1: Plan the article
+        print(f"Planning article: {topic}")
         output_planner = planner_tool(topic, verbose=False)
 
         # Step 2: Research the article
+        print("Researching article...")
         researcher = ArticleReACTResearcher(
             output_planner.research_strategy,
             output_planner.action_plan,
@@ -88,9 +91,11 @@ class ArticleWriter(dspy.Module):
             memory_content=output_planner.memory_context)
 
         # Step 3: Generate the outline
+        print("Generating outline...")
+        initial_outline = json.loads(output_researcher.final_outline)
         outline = self.build_outline(
             topic=topic, 
-            initial_outline=output_researcher.final_outline, 
+            initial_outline=initial_outline["sections"][0], 
             research_findings=output_researcher.final_content, 
             research_sources=output_researcher.final_sources,
             target_audience=self.audience)
@@ -98,6 +103,9 @@ class ArticleWriter(dspy.Module):
         # Phase 3: Generate sections with research integration
         sections_en = []
         sections_translated = []
+        print(f"Title: {outline.title} ({len(outline.sections)} sections)")
+        print(outline.section_subheadings)
+        print(output_researcher.final_outline)
 
         for heading, subheadings in outline.section_subheadings.items():
             print(f"Generating section: {heading}")

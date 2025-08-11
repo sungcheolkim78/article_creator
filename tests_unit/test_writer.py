@@ -7,21 +7,21 @@ from utils.text import display_article_content, save_article_to_file
 
 
 def test_writer():
-    llm_setup("openai/gpt-4o-mini")
+    llm_setup("openrouter/openai/gpt-oss-20b")
 
     writer = ArticleWriter(verbose=True)
 
-    topic = "The benefits of using React in web development"
+    topic = "Cursor AI overview"
     language = "Korean"
     output = writer(topic=topic, language=language)
 
-    print(output.title)
-    print(output.sections_en)
-    print(output.sections_translated)
-    print(output.research_summary)
-    print(output.key_sources)
+    #print(output.title)
+    # print(output.sections_en)
+    # print(output.sections_translated)
+    # print(output.research_summary)
+    # print(output.key_sources)
 
-    display_article_content(output, language)
+    # display_article_content(output, language)
 
     # Save to files if not display-only
     output_dir = "data/articles"
