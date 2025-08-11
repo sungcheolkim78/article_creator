@@ -7,11 +7,12 @@ from utils.text import save_article_to_file
 
 
 def test_writer():
-    llm_setup("openai/gpt-4o-mini")
+    model_name = "gemini/gemini-2.5-flash"
+    llm_setup(model_name)
 
-    writer = ArticleWriter(verbose=True)
+    writer = ArticleWriter(verbose=False)
 
-    topic = "Lovable AI"
+    topic = "DSPy AI Agentic Framework"
     language = "Korean"
     output = writer(topic=topic, language=language)
 
@@ -21,7 +22,7 @@ def test_writer():
         "language": language,
         "mode": "enhanced",
         "use_react": True,
-        "llm_model": "openai/gpt-4o-mini",
+        "llm_model": model_name,
         "search_tool_name": "ddg",
         "generation_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     }

@@ -48,7 +48,7 @@ class ArticleFactCheck(dspy.Signature):
     sources: str = dspy.InputField(desc="available sources for verification")
 
     verified_content: str = dspy.OutputField(
-        desc="fact-checked content with corrections if needed"
+        desc="fact-checked content with corrections if needed, keep the proper citations"
     )
     fact_check_notes: str = dspy.OutputField(
         desc="notes about fact-checking process and findings"
@@ -74,14 +74,14 @@ class ArticleWriter(dspy.Module):
         """Write an article using the outline and content and sources."""
         # Step 1: Plan the article
         print(f"Planning article: {topic}")
-        output_planner = planner_tool(topic, verbose=True)
+        output_planner = planner_tool(topic, verbose=self.verbose)
 
         # Step 2: Research the article
         print("Researching article...")
         researcher = ArticleReACTResearcher(
             output_planner.research_strategy,
             output_planner.action_plan,
-            verbose=True,
+            verbose=self.verbose,
         )
         output_researcher = researcher(
             topic=topic,
@@ -100,8 +100,6 @@ class ArticleWriter(dspy.Module):
         sections_en = []
         sections_translated = []
         print(f"Title: {outline.title} ({len(outline.sections)} sections)")
-        print(outline.section_subheadings)
-        print(output_researcher.final_outline)
 
         for heading, subheadings in outline.section_subheadings.items():
             print(f"Generating section: {heading}")
@@ -132,7 +130,6 @@ class ArticleWriter(dspy.Module):
                 sections_translated.append(section_en)
 
             sections_en.append(section_en)
-            print(sections_translated[-1])
 
         return dspy.Prediction(
             title=outline.title,

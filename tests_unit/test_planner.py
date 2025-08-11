@@ -12,7 +12,7 @@ def test_planner():
     available_tools = ""
     memory_context = ""
     result = planner_tool(
-        topic, current_outline, research_gaps, available_tools, memory_context, verbose=True
+        topic, current_outline, research_gaps, available_tools, memory_context, verbose=False
     )
 
     print("-" * 100)

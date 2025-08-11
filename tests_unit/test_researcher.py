@@ -8,13 +8,13 @@ def test_researcher():
     """Test the researcher tool"""
     llm_setup("openai/gpt-4o-mini")
 
-    topic = "Lovable AI"
-    output_planner = planner_tool(topic, verbose=True)
+    topic = "DSPy AI Agentic Framework"
+    output_planner = planner_tool(topic, verbose=False)
 
     researcher = ArticleReACTResearcher(
         output_planner.research_strategy,
         output_planner.action_plan,
-        verbose=True,
+        verbose=False,
     )
     output_researcher = researcher(
         topic=topic,
@@ -25,7 +25,7 @@ def test_researcher():
     print("-" * 100)
     print(output_researcher.final_outline)
     print("-" * 100)
-    print(output_researcher.final_content)
+    # print(output_researcher.final_content)
 
 
 if __name__ == "__main__":

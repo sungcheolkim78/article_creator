@@ -18,17 +18,20 @@ class ArticleReACTResearcher(dspy.Module):
     def forward(self, topic: str, outline: dict[str, list[str]], memory_content: str) -> dspy.Prediction:
         output = self.react(topic=topic, outline=outline, memory_content=memory_content)
 
+        iterations = 1
         for k, v in output.trajectory.items():
             if self.verbose:
                 print(click.style(k, fg="blue"))
                 print(click.style(v, fg="green"))
                 print()
             if k.startswith("observation"):
-                memory_content += v
+                memory_content += f"\n{v}"
+                iterations += 1
 
         if self.verbose:
             print(click.style(output.reasoning, fg="yellow"))
 
+        print(f"ArticleReACTResearcher|{iterations} Iterations|{output.final_title}")
         return dspy.Prediction(
             final_title=output.final_title,
             final_outline=output.final_outline,
