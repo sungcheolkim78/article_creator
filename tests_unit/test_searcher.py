@@ -1,16 +1,25 @@
-from websearch.searcher import ReACTSearcher, tool_search_web
+from websearch.searcher import ReACTSearcher, tool_search_web, QuerySearcher
 from utils.llm import llm_setup
+import click
 
 
-def test_basic_search():
-    searcher = ReACTSearcher(engine="ddg", verbose=True)
+@click.command()
+@click.option("--topic", type=str, default="Overview on Rust programming language")
+@click.option("--mode", type=str, default="react")
+def test_basic_search(topic, mode):
+    llm_options = llm_setup("gemini/gemini-2.5-flash-lite", cache=True, extra_options={"max_tokens": 4096})
 
-    topic = "how to use asyncio in python?"
+    if mode == "react":
+        searcher = ReACTSearcher(engine="tavily", verbose=True)
+    elif mode == "query":
+        searcher = QuerySearcher(engine="tavily", verbose=True)
+    else:
+        raise ValueError(f"Invalid mode: {mode}")
+
     result = searcher(topic)
 
     print(result.markdown)
 
 
 if __name__ == "__main__":
-    llm_setup("openai/gpt-4o-mini")
     test_basic_search()
