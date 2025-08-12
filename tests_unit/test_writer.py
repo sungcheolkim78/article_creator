@@ -12,7 +12,7 @@ def test_writer():
 
     writer = ArticleWriter(verbose=False)
 
-    topic = "DSPy AI Agentic Framework"
+    topic = "langgraph total guide"
     language = "Korean"
     output = writer(topic=topic, language=language)
 

@@ -112,7 +112,7 @@ class EnhancedArticleCreator(dspy.Module):
 
         # Phase 3: Generate sections with research integration
         sections_en = []
-        sections_other = []
+        sections_translated = []
 
         for heading, subheadings in outline.section_subheadings.items():
             logger.info(f"Generating section: {heading}")
@@ -141,17 +141,17 @@ class EnhancedArticleCreator(dspy.Module):
 
             # Translate if needed
             if language.lower() != "english":
-                section_other = self.translate(text=section_en, language=language)
-                sections_other.append(section_other.translated_content)
+                section_translated = self.translate(text=section_en, language=language)
+                sections_translated.append(section_translated.translated_content)
             else:
-                sections_other.append(section_en)
+                sections_translated.append(section_en)
 
             sections_en.append(section_en)
 
         return dspy.Prediction(
             title=outline.title,
             sections_en=sections_en,
-            sections_other=sections_other,
+            sections_translated=sections_translated,
             research_summary=research_summary,
             key_sources=outline.key_sources,
             react_results=react_results if use_react else None,

@@ -31,9 +31,7 @@ class ResearchTool(dspy.Module):
         # Format results for synthesis
         search_content = "\n\n".join(
             [
-                f"Source {i + 1}: {result.title}\n{result.snippet}\n{extra_snippets}\nURL: {result.url}"
-                if (extra_snippets := "\n".join(result.extra_snippets))
-                else f"Source {i + 1}: {result.title}\n{result.snippet}\nURL: {result.url}"
+                f"Source {i + 1}: {result.title}\n{result.snippet}\nURL: {result.url}"
                 for i, result in enumerate(search_results)
             ]
         )

@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from typing import List, Optional
+import json
 
 
 @dataclass
@@ -24,3 +25,22 @@ class SearchResult:
             msg += f"\n- Published Time: {self.published_time}"
         msg += "\n"
         return msg
+
+    def to_markdown(self):
+        return f"- [{self.title}]({self.url})"
+
+    def to_json(self):
+        return json.dumps({
+            "title": self.title,
+            "url": self.url,
+            "content": self.snippet,
+        })
+
+    @classmethod
+    def from_json(cls, json_str):
+        data = json.loads(json_str)
+        return cls(
+            title=data["title"],
+            url=data["url"],
+            snippet=data["content"]
+        )
