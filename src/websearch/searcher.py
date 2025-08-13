@@ -6,24 +6,22 @@ import time
 import re
 import click
 from typing import Literal
+from websearch.base import BaseSearcher
 
 
 class QueryOptimizer(dspy.Signature):
-    """Optimizes search queries for search engine"""
+    """Optimizes search queries for search engine, create only 3-5 queries that are relevant to the original query."""
 
     original_query: str = dspy.InputField()
-    optimized_search_query: list[str] = dspy.OutputField(desc="generate multiple queries to search for the original query")
+    optimized_search_query: list[str] = dspy.OutputField(desc="Generate multiple queries to search for the original query")
 
 
-class QuerySearcher(dspy.Module):
+class QuerySearcher(BaseSearcher):
     def __init__(self, engine: str = "tavily", k: int = 3, verbose: bool = False):
-        self.engine = engine
-        self.k = k
-        self.verbose = verbose
+        super().__init__(engine, k, verbose)
         self.query_optimizer = dspy.ChainOfThought(QueryOptimizer)
-        self._search_results = {}
 
-    def _setup_tools(self, engine: str):
+    def _setup_tools(self, category: str, engine: str):
         if engine == "tavily":
             from websearch.tavily import search_news, search_web
         elif engine == "ddg":
@@ -34,39 +32,27 @@ class QuerySearcher(dspy.Module):
         self.search_web = search_web
         self.search_news = search_news
 
-    def forward(self, query: str) -> str:
-        start_time = time.time()
-        self._setup_tools(self.engine)
+    def _search(self, query: str) -> tuple[str, str, str]:
         query_list = self.query_optimizer(original_query=query).optimized_search_query
-
         if self.verbose:
             print(click.style(f"Optimized query: {query} -> {query_list}", fg="yellow"))
 
+        query_summaries = []
         for item in query_list:
             web_results = self.search_web(item, self.k)
-            self._add_search_results([SearchResult.from_json(result) for result in web_results])
+            web_results = [SearchResult.from_json(result) for result in web_results]
+            web_citations = ' '.join([f"[^{item.sid}]" for item in web_results])
+            web_summary = self._get_summary(item, web_results)
+            query_summaries.append(f"**{item}:** {web_summary} {web_citations}")
+            self._add_search_results(web_results)
 
-        markdown = f"## Web Search Results on [{','.join(query_list)}]\n" 
-        markdown += "\n".join([item.to_markdown() for item in self.search_results])
-        markdown += "\n"
+        proc_info = f"{len(query_list)} Sub-Queries|{len(self.search_results)} Results"
+        sources = "\n".join([item.to_markdown() for item in self.search_results])
+        search_summary = f"## Web Search Results on |{query}|\n\n" 
+        search_summary += "\n\n".join([item for item in query_summaries])
+        search_summary += "\n"
 
-        execution_time = time.time() - start_time
-        print(f"QuerySearcher|{query}|{len(query_list)} Sub-Queries|{len(self.search_results)} Results|{execution_time:.2f}s")
-
-        return dspy.Prediction(
-            query=query,
-            optimized_query=','.join(query_list),
-            markdown=markdown,
-        )
-
-    def _add_search_results(self, results: list[SearchResult]):
-        for result in results:
-            if result.url not in self._search_results:
-                self._search_results[result.url] = result
-    
-    @property
-    def search_results(self) -> list[SearchResult]:
-        return list(self._search_results.values())
+        return search_summary, sources, proc_info
 
 
 GOALS = {
