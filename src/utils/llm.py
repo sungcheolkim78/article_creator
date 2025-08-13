@@ -44,7 +44,7 @@ def llm_setup(model_name: str) -> None:
     elif "gemini" in model_name:
         api_key = os.getenv("GEMINI_API_KEY")
         options = {
-            "temperature": 0.1,
+            "temperature": 0.2,
             "top_p": 0.9,
             "max_tokens": 8000,
         }
