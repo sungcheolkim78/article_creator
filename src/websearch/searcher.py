@@ -58,7 +58,7 @@ class QuerySearcher(BaseSearcher):
 GOALS = {
     "claim": "Find all relevant information to verify (or refute) the claim. Use the search tool with k=3 to 5.",
     "question": "Find all relevant information to answer the question. Use the search tool with k=3.",
-    "topic": "Find various information on topic with multiple perspective. Use the search tool with starting k=5 and decreasing k"
+    "topic": "Find comprehensive information about the topic with multiple perspectives. Use the search tool with k=3 to 5.",
 }
 
 
@@ -79,28 +79,12 @@ class RelevanceChecker(dspy.Signature):
     )
 
 
-class Category(dspy.Signature):
-    """Categorizes the text into claim, question, or topic"""
-
-    text: str = dspy.InputField()
-    category: Literal["claim", "question", "topic"] = dspy.OutputField(
-        desc="The category of the text"
-    )
-
-
-class ReACTSearcher(dspy.Module):
+class ReACTSearcher(BaseSearcher):
     def __init__(self, engine: str = "tavily", k: int = 3, verbose: bool = False):
+        super().__init__(engine, k, verbose)
         self.check = dspy.Predict(RelevanceChecker)
-        self.category = dspy.Predict(Category)
-        self.summary = dspy.Predict("query, results -> summary")
-        self.engine = engine
-        self.verbose = verbose
 
-    def _setup_react(self, category: str, engine: str):
-        ReACTGoal.instructions = GOALS[category]
-        if self.verbose:
-            print(ReACTGoal.instructions)
-
+    def _setup_tools(self, category: str, engine: str):
         if engine == "tavily":
             from websearch.tavily import search_news, search_web
         elif engine == "ddg":
@@ -108,21 +92,20 @@ class ReACTSearcher(dspy.Module):
         else:
             raise ValueError(f"Invalid engine: {engine}")
 
-        return dspy.ReAct(ReACTGoal, tools=[search_web, search_news], max_iters=5)
-
-    def forward(self, claim: str) -> list[SearchResult]:
-        start_time = time.time()
-        category = self.category(text=claim).category
-        react = self._setup_react(category, self.engine)
-
+        ReACTGoal.instructions = GOALS[category]
         if self.verbose:
-            print(click.style(f"Category: {category}", fg="yellow"))
+            print(ReACTGoal.instructions)
 
-        result = react(claim=claim)
+        self.search_web = search_web
+        self.search_news = search_news
+        self.react = dspy.ReAct(ReACTGoal, tools=[search_web, search_news], max_iters=5)
+
+    def _search(self, claim: str) -> tuple[str, str, str]:
+        result = self.react(claim=claim)
 
         iterations = 1
         observations = []
-        query_summarys = []
+        query_summaries = []
         for k, v in result.trajectory.items():
             if self.verbose:
                 print(click.style(k, fg="blue"))
@@ -136,41 +119,27 @@ class ReACTSearcher(dspy.Module):
                 query = v.get("query", "")
 
             if k.startswith("observation") and v != "Completed.":
-                results = [SearchResult.from_json(item) for item in v]
-                query_summary = ""
-                for item in results:
-                    if self.check(claim=claim, observation=item.title).relevant:
-                        observations.append(item)
-                        query_summary += f"\n- {item.title}|{item.snippet}\n"
+                web_results = [SearchResult.from_json(item) for item in v]
+                # web_results = [item for item in web_results if self.check(claim=query, observation=item.title).relevant]
+                observations.extend(web_results)
 
                 iterations += 1
                 if query != "":
-                    query_summary = self.summary(query=query, results=query_summary).summary
-                    query_summarys.append(f"**{query} ({source}):** {query_summary}")
+                    web_citations = ' '.join([f"[^{item.sid}]" for item in web_results])
+                    web_summary = self._get_summary(query, web_results)
+                    query_summaries.append(f"**{query} ({source}):** {web_summary} {web_citations}")
 
         if self.verbose:
             print(click.style(result.reasoning, fg="yellow"))
-            print(click.style(result.results, fg="green"))
-            print(click.style(query_summarys, fg="blue"))
 
-        execution_time = time.time() - start_time
-        print(f"ReACTSearcher|{claim}|{category}|{iterations} Iterations|{len(observations)} Results|{execution_time:.2f}s")
-
-        search_summary = f"## Web Search Results on [{claim}]\n" 
+        proc_info = f"{iterations} Iterations|{len(observations)} Results"
+        sources = "\n".join([item.to_markdown() for item in observations])
+        search_summary = f"## Web Search Results on |{claim}|\n" 
         search_summary += f"\n{result.results}\n\n"
-        search_summary += "\n\n".join([item for item in query_summarys])
+        search_summary += "\n\n".join([item for item in query_summaries])
         search_summary += "\n"
 
-        sources = "\n".join([item.to_markdown() for item in observations])
-
-        markdown = search_summary + f"\n## Sources\n\n" + sources + "\n"
-
-        return dspy.Prediction(
-            query=claim,
-            summary=search_summary,
-            sources=observations,
-            markdown=markdown,
-        )
+        return search_summary, sources, proc_info
 
 
 def tool_search_web(query: str, engine: str = "tavily", verbose: bool = False) -> str:
