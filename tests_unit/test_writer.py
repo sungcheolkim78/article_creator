@@ -12,7 +12,11 @@ def test_writer():
 
     writer = ArticleWriter(verbose=False)
 
+<<<<<<< HEAD
     topic = "Efficient Transformer Architectures"
+=======
+    topic = "langgraph total guide"
+>>>>>>> 9843c4b0cb1ce3a0fa1d99fb6ab60fb29a899735
     language = "Korean"
     output = writer(topic=topic, language=language)
 

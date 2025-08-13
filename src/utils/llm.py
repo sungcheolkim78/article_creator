@@ -9,7 +9,7 @@ logging.getLogger("LiteLLM").setLevel(logging.WARNING)
 load_dotenv()
 
 
-def llm_setup(model_name: str) -> None:
+def llm_setup(model_name: str, cache: bool = True, extra_options: dict = {}) -> dict:
     """
     Setup the LLM for dspy.
 
@@ -21,6 +21,10 @@ def llm_setup(model_name: str) -> None:
     Returns:
         None
     """
+    # load environment variables
+    load_dotenv()
+
+    # openrouter goes first due to the naming pattern such as openrouter/openai/gpt-4o-mini
     if "openrouter" in model_name:
         api_key = os.getenv("OPENROUTER_API_KEY")
         options = {
@@ -44,9 +48,13 @@ def llm_setup(model_name: str) -> None:
     elif "gemini" in model_name:
         api_key = os.getenv("GEMINI_API_KEY")
         options = {
+<<<<<<< HEAD
             "temperature": 0.2,
             "top_p": 0.9,
             "max_tokens": 8000,
+=======
+            "temperature": 1.0,
+>>>>>>> 9843c4b0cb1ce3a0fa1d99fb6ab60fb29a899735
         }
     elif "ollama" in model_name:
         api_key = ""
@@ -59,12 +67,19 @@ def llm_setup(model_name: str) -> None:
     else:
         raise ValueError(f"Invalid model name: {model_name}")
 
+    options.update(extra_options)
+
     lm = dspy.LM(
         model_name,
         api_key=api_key,
         **options,
     )
     dspy.settings.configure(lm=lm, track_usage=True)
+    dspy.configure_cache(
+        enable_disk_cache=cache,
+        enable_memory_cache=cache,
+    )
+    return options.update({'model_name': model_name, 'cache': cache})
 
 
 def check_environment(llm_model: str, search_tool_name: str) -> Dict[str, bool]:
