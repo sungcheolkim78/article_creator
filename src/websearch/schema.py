@@ -5,7 +5,7 @@ import json
 
 @dataclass
 class SearchResult:
-    """Data class for search results"""
+    """Data class for single search results"""
 
     title: str
     url: str
@@ -61,3 +61,20 @@ class SearchResult:
     def reset_sid_counter(cls):
         """Reset the sid counter to 1 (useful for testing)"""
         cls._next_sid = 1
+
+
+@dataclass
+class QueryResult:
+    """Data class for query results from multiple SearchResults"""
+
+    query: str
+    results: list[SearchResult]
+
+    def __post_init__(self):
+        self.query_summary = self._get_summary(self.query, self.results)
+        self.citations = ' '.join([f"[^{item.sid}]" for item in self.results])
+        self.links = "\n".join([item.to_markdown() for item in self.results])
+
+    def __str__(self):
+        return f"**{self.query} ({self.source}):** {self.query_summary} {self.citations}"
+

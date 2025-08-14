@@ -59,8 +59,7 @@ class ArticlePlanner(dspy.Module):
         memory_context = json.loads(initial_search)["summary"]
 
         # Generate the outline if not provided
-        outline = tool_outline(topic, "no initial outline", memory_context)
-        outline_str = json.dumps(outline.section_subheadings)
+        outline_str = tool_outline(topic, "no initial outline", memory_context)
 
         if self.verbose:
             print(click.style(f"Step 2: Generate Outline - {outline_str}", fg="blue"))
@@ -94,8 +93,7 @@ class ArticlePlanner(dspy.Module):
         return dspy.Prediction(
             research_strategy=output.research_strategy,
             action_plan=output.action_plan,
-            title=outline.title,
-            outline=outline.section_subheadings,
+            outline=outline_str,
             memory_context=memory_context,
         )
 
@@ -111,7 +109,7 @@ class AnalyzedInfo(dspy.Signature):
 def tool_analyze(question: str, related_content: str) -> str:
     """Given a question and related content, generate a comprehensive analysis of the content."""
     analyzer = dspy.ChainOfThought(AnalyzedInfo)
-    return analyzer(question=question, related_content=related_content)
+    return analyzer(question=question, related_content=related_content).analysis_content
 
 
 class SynthesizedInfo(dspy.Signature):
@@ -126,7 +124,7 @@ class SynthesizedInfo(dspy.Signature):
 def tool_synthesize(analysis_content: str, outline: str, research_gaps: str) -> str:
     """Integrate the findings into the existing article outline, expanding on the sections that were previously lacking detail. Ensure smooth transitions and a coherent narrative."""
     synthesizer = dspy.ChainOfThought(SynthesizedInfo)
-    return synthesizer(analysis_content=analysis_content, outline=outline, research_gaps=research_gaps)
+    return synthesizer(analysis_content=analysis_content, outline=outline, research_gaps=research_gaps).synthesized_content
 
 
 class ArticleOutline(dspy.Signature):
@@ -147,6 +145,10 @@ def tool_outline(topic: str, outline: str, memory_content: str) -> dspy.Predicti
     """Given a topic, previous outline, and research findings, generate a comprehensive outline for an article."""
 
     outliner = dspy.ChainOfThought(ArticleOutline)
-    return outliner(
+    outcome = outliner(
         topic=topic, prev_outline=outline, content=memory_content
     )
+    return json.dumps({
+        "title": outcome.title,
+        "outline": outcome.section_subheadings,
+    })

@@ -20,6 +20,11 @@ def test_planner(topic, mode, engine):
     print(result.research_strategy)
     print("-" * 100)
     print(result.action_plan)
+    print("-" * 100)
+    print(result.outline)
+    print("-" * 100)
+    print(result.memory_context)
+    print("-" * 100)
 
 
 if __name__ == "__main__":

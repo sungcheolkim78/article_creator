@@ -1,10 +1,12 @@
-from websearch.schema import SearchResult
 import dspy
 import click
-from websearch.base import BaseSearcher
-from typing import Literal
-from datetime import datetime
 import json
+from datetime import datetime
+from typing import Literal
+
+from dspy.clients.cache import request_cache
+from websearch.base import BaseSearcher
+from websearch.schema import SearchResult
 
 
 class QueryOptimizer(dspy.Signature):
@@ -171,6 +173,7 @@ class ReACTSearcher(BaseSearcher):
         return search_summary, sources, proc_info
 
 
+@request_cache()
 def tool_search_web(query: str, mode: str = "query", engine: str = "tavily", verbose: bool = False) -> str:
     """Generate a search summary for the given query using the ReACTSearcher"""
 
@@ -187,6 +190,6 @@ def tool_search_web(query: str, mode: str = "query", engine: str = "tavily", ver
         {
             "query": query,
             "summary": output.summary,
-            "sources": "\n".join([item.to_json() for item in output.sources]),
+            "sources": "\n".join([item.to_markdown() for item in output.sources]),
         }
     )
