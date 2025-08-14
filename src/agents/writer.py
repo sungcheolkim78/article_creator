@@ -49,9 +49,7 @@ class ArticleFactCheck(dspy.Signature):
     verified_content: str = dspy.OutputField(
         desc="fact-checked content with corrections if needed, add the proper citations"
     )
-    key_sources: str = dspy.OutputField(
-        desc="key sources for verification"
-    )
+    key_sources: str = dspy.OutputField(desc="key sources for verification")
 
 
 class FindContext(dspy.Signature):
@@ -94,29 +92,33 @@ class ArticleWriter(dspy.Module):
         output_researcher = researcher(
             topic=topic,
             outline=output_planner.outline,
-            memory_content=output_planner.memory_context)
+            memory_content=output_planner.memory_context,
+        )
 
         # Step 3: Generate the outline
         print(f"ArticleWriter|Generating outline...")
         outline = self.build_outline(
-            topic=topic, 
+            topic=topic,
             initial_outline=output_researcher.final_outline,
-            research_findings=output_researcher.final_content, 
-            target_audience=self.audience)
+            research_findings=output_researcher.final_content,
+            target_audience=self.audience,
+        )
 
         # Phase 3: Generate sections with research integration
         sections_en = []
         sections_translated = []
-        print(f"ArticleWriter|Title: {outline.title} ({len(outline.sections)} sections)")
+        print(
+            f"ArticleWriter|Title: {outline.title} ({len(outline.sections)} sections)"
+        )
 
         key_sources = []
         for heading, subheadings in outline.section_subheadings.items():
             print(f"ArticleWriter|Generating section: {heading}")
 
             section_content = self.find_context(
-                topic=heading, 
+                topic=heading,
                 content=output_researcher.final_content,
-                previous_content=sections_en[-1] if sections_en else ""
+                previous_content=sections_en[-1] if sections_en else "",
             ).key_information
 
             # Generate section content

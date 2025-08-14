@@ -1,19 +1,20 @@
 import dspy
-from agents.planner import planner_tool
+from agents.planner import ArticlePlanner
 from utils.llm import llm_setup
+import click
 
 
-def test_planner():
+@click.command()
+@click.option("--topic", type=str, default="Lovable AI")
+@click.option("--mode", type=str, default="query")
+@click.option("--engine", type=str, default="tavily")
+def test_planner(topic, mode, engine):
     """Test the planner tool"""
 
-    topic = "Lovable AI"
-    current_outline = None
-    research_gaps = ""
-    available_tools = ""
-    memory_context = ""
-    result = planner_tool(
-        topic, current_outline, research_gaps, available_tools, memory_context, verbose=False
-    )
+    llm_setup("gemini/gemini-2.5-flash-lite", cache=True, extra_options={"max_tokens": 4096})
+
+    planner = ArticlePlanner(mode=mode, engine=engine, verbose=True)
+    result = planner.forward(topic)
 
     print("-" * 100)
     print(result.research_strategy)
@@ -22,9 +23,4 @@ def test_planner():
 
 
 if __name__ == "__main__":
-    llm_setup("openai/gpt-4o-mini")
-    dspy.configure_cache(
-        enable_disk_cache=True,
-        enable_memory_cache=True,
-    )
     test_planner()

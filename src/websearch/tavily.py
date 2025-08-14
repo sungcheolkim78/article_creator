@@ -3,13 +3,14 @@ from tavily import TavilyClient
 from typing import List
 from dspy.clients.cache import request_cache
 from websearch.schema import SearchResult
+import logging
 
 from dotenv import load_dotenv
 
+logger = logging.getLogger("tavily_search")
 load_dotenv()
 
 tavily_client = TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
-
 
 
 @request_cache()
@@ -30,7 +31,7 @@ def get_news(query: str, k: int, options: dict = {}) -> List[SearchResult]:
             notes=None,
             source="news",
         )
-        for item in results['results']
+        for item in results["results"]
     ]
 
 
@@ -52,7 +53,7 @@ def get_text(query: str, k: int, options: dict = {}) -> List[SearchResult]:
             notes=None,
             source="web",
         )
-        for item in results['results']
+        for item in results["results"]
     ]
 
 

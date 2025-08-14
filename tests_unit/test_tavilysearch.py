@@ -16,6 +16,7 @@ def show_search_results(qtype: str, query: str, results: List[SearchResult]):
     for result in results:
         print(result)
 
+
 def test_basic_search():
     """Test basic search functionality"""
     print("Testing basic TavilySearch...")
@@ -52,5 +53,5 @@ if __name__ == "__main__":
     # test_filtered_search()
     # test_ddg_react_searcher()
 
-    #txt = tool_search_web("Lovable AI", verbose=False)
-    #print(txt)
+    # txt = tool_search_web("Lovable AI", verbose=False)
+    # print(txt)

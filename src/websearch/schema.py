@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import Optional
 import json
 
 
@@ -39,12 +39,14 @@ class SearchResult:
         return f"[^{self.sid}]: [{self.title}]({self.url})"
 
     def to_json(self):
-        return json.dumps({
-            "title": self.title,
-            "url": self.url,
-            "content": self.snippet,
-            "sid": self.sid,
-        })
+        return json.dumps(
+            {
+                "title": self.title,
+                "url": self.url,
+                "content": self.snippet,
+                "sid": self.sid,
+            }
+        )
 
     @classmethod
     def from_json(cls, json_str):

@@ -1,31 +1,45 @@
-from typing import List
 from websearch.schema import SearchResult
-from dspy.signatures import make_signature
 import dspy
-import time
-import re
 import click
-from typing import Literal
 from websearch.base import BaseSearcher
+from typing import Literal
+from datetime import datetime
+import json
 
 
 class QueryOptimizer(dspy.Signature):
     """Optimizes search queries for search engine, create only 3-5 queries that are relevant to the original query."""
 
     original_query: str = dspy.InputField()
-    optimized_search_query: list[str] = dspy.OutputField(desc="Generate multiple queries to search for the original query")
+    optimized_search_query: list[str] = dspy.OutputField(
+        desc="Generate multiple queries to search for the original query"
+    )
+
+
+class SelectSource(dspy.Signature):
+    """Choose web or news source for the search query."""
+
+    query: str = dspy.InputField()
+    source: Literal["web", "news"] = dspy.OutputField(
+        desc="If the query is about a specific event, recent changes, or recent news, choose news. Otherwise, choose web."
+    )
 
 
 class QuerySearcher(BaseSearcher):
     def __init__(self, engine: str = "tavily", k: int = 3, verbose: bool = False):
         super().__init__(engine, k, verbose)
         self.query_optimizer = dspy.ChainOfThought(QueryOptimizer)
+        SelectSource.instructions += f"The current date is {datetime.now().strftime('%Y-%m-%d')}."
+        self.select_source = dspy.ChainOfThought(SelectSource)
+        self._name = "QuerySearcher"
 
     def _setup_tools(self, category: str, engine: str):
         if engine == "tavily":
             from websearch.tavily import search_news, search_web
         elif engine == "ddg":
             from websearch.ddg import search_news, search_web
+        elif engine == "brave":
+            from websearch.brave import search_news, search_web
         else:
             raise ValueError(f"Invalid engine: {engine}")
 
@@ -39,16 +53,24 @@ class QuerySearcher(BaseSearcher):
 
         query_summaries = []
         for item in query_list:
-            web_results = self.search_web(item, self.k)
+            temp = self.select_source(query=item)
+            if self.verbose:
+                print(click.style(f"Reasoning: {temp.reasoning}", fg="yellow"))
+            source = temp.source
+            if source == "web":
+                web_results = self.search_web(item, self.k)
+            elif source == "news":
+                web_results = self.search_news(item, self.k)
+            
             web_results = [SearchResult.from_json(result) for result in web_results]
-            web_citations = ' '.join([f"[^{item.sid}]" for item in web_results])
+            web_citations = " ".join([f"[^{item.sid}]" for item in web_results])
             web_summary = self._get_summary(item, web_results)
-            query_summaries.append(f"**{item}:** {web_summary} {web_citations}")
+            query_summaries.append(f"**{item} ({source}):** {web_summary} {web_citations}")
             self._add_search_results(web_results)
 
         proc_info = f"{len(query_list)} Sub-Queries|{len(self.search_results)} Results"
         sources = "\n".join([item.to_markdown() for item in self.search_results])
-        search_summary = f"## Web Search Results on |{query}|\n\n" 
+        search_summary = f"## Web Search Results on |{query}|\n\n"
         search_summary += "\n\n".join([item for item in query_summaries])
         search_summary += "\n"
 
@@ -66,7 +88,9 @@ class ReACTGoal(dspy.Signature):
     """Find all relevant information to verify (or refute) the claim."""
 
     claim: str = dspy.InputField()
-    results: str = dspy.OutputField(desc="The search results summary in a single sentence")
+    results: str = dspy.OutputField(
+        desc="The search results summary in a single sentence"
+    )
 
 
 class RelevanceChecker(dspy.Signature):
@@ -83,12 +107,15 @@ class ReACTSearcher(BaseSearcher):
     def __init__(self, engine: str = "tavily", k: int = 3, verbose: bool = False):
         super().__init__(engine, k, verbose)
         self.check = dspy.Predict(RelevanceChecker)
+        self._name = "ReACTSearcher"
 
     def _setup_tools(self, category: str, engine: str):
         if engine == "tavily":
             from websearch.tavily import search_news, search_web
         elif engine == "ddg":
             from websearch.ddg import search_news, search_web
+        elif engine == "brave":
+            from websearch.brave import search_news, search_web
         else:
             raise ValueError(f"Invalid engine: {engine}")
 
@@ -125,16 +152,18 @@ class ReACTSearcher(BaseSearcher):
 
                 iterations += 1
                 if query != "":
-                    web_citations = ' '.join([f"[^{item.sid}]" for item in web_results])
+                    web_citations = " ".join([f"[^{item.sid}]" for item in web_results])
                     web_summary = self._get_summary(query, web_results)
-                    query_summaries.append(f"**{query} ({source}):** {web_summary} {web_citations}")
+                    query_summaries.append(
+                        f"**{query} ({source}):** {web_summary} {web_citations}"
+                    )
 
         if self.verbose:
             print(click.style(result.reasoning, fg="yellow"))
 
         proc_info = f"{iterations} Iterations|{len(observations)} Results"
         sources = "\n".join([item.to_markdown() for item in observations])
-        search_summary = f"## Web Search Results on |{claim}|\n" 
+        search_summary = f"## Web Search Results on |{claim}|\n"
         search_summary += f"\n{result.results}\n\n"
         search_summary += "\n\n".join([item for item in query_summaries])
         search_summary += "\n"
@@ -142,14 +171,22 @@ class ReACTSearcher(BaseSearcher):
         return search_summary, sources, proc_info
 
 
-def tool_search_web(query: str, engine: str = "tavily", verbose: bool = False) -> str:
+def tool_search_web(query: str, mode: str = "query", engine: str = "tavily", verbose: bool = False) -> str:
     """Generate a search summary for the given query using the ReACTSearcher"""
 
-    searcher = ReACTSearcher(engine=engine, verbose=verbose)
+    if mode == "react":
+        searcher = ReACTSearcher(engine=engine, verbose=verbose)
+    elif mode == "query":
+        searcher = QuerySearcher(engine=engine, verbose=verbose)
+    else:
+        raise ValueError(f"Invalid mode: {mode}")
+
     output = searcher(query)
 
-    return json.dumps({
-        "query": query,
-        "summary": output.summary,
-        "sources": "\n".join([item.to_json() for item in output.sources]),
-    })
+    return json.dumps(
+        {
+            "query": query,
+            "summary": output.summary,
+            "sources": "\n".join([item.to_json() for item in output.sources]),
+        }
+    )

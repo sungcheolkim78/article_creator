@@ -3,7 +3,12 @@
 Simple test script for DDGSearchTool (basic functionality only)
 """
 
-from websearch.ddgsearch import DDGSearchTool, OptimizedDDGSearch, DDGReACTSearcher, tool_search_web
+from websearch.ddgsearch import (
+    DDGSearchTool,
+    OptimizedDDGSearch,
+    DDGReACTSearcher,
+    tool_search_web,
+)
 from websearch.schema import SearchResult
 from typing import List
 import dspy
@@ -15,6 +20,7 @@ def show_search_results(qtype: str, query: str, results: List[SearchResult]):
     print(f"Found {len(results)} results:")
     for result in results:
         print(result)
+
 
 def test_basic_search():
     """Test basic search functionality"""

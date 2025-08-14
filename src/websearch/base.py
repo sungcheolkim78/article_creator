@@ -2,7 +2,6 @@ import dspy
 from websearch.schema import SearchResult
 import time
 from typing import Literal
-import click
 
 
 class Category(dspy.Signature):
@@ -43,7 +42,9 @@ class BaseSearcher(dspy.Module):
         markdown = search_summary + f"\n## Sources\n\n" + sources + "\n"
 
         execution_time = time.time() - start_time
-        print(f"{self._name}|{category}|{query}|{proc_info}|{self.engine}|{execution_time:.2f}s")
+        print(
+            f"{self._name}|{category}|{query}|{proc_info}|{self.engine}|{execution_time:.2f}s"
+        )
 
         return dspy.Prediction(
             query=query,
@@ -62,14 +63,14 @@ class BaseSearcher(dspy.Module):
         for result in results:
             if result.url not in self._search_results:
                 self._search_results[result.url] = result
-    
+
     def _get_summary(self, query: str, results: list[SearchResult]) -> str:
         query_summary = ""
         for result in results:
             query_summary += f"\n- {result.title}|{result.snippet}\n"
 
         return self.summary(query=query, results=query_summary).summary
-    
+
     @property
     def search_results(self) -> list[SearchResult]:
         return list(self._search_results.values())

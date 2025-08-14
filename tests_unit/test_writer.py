@@ -12,11 +12,7 @@ def test_writer():
 
     writer = ArticleWriter(verbose=False)
 
-<<<<<<< HEAD
     topic = "Efficient Transformer Architectures"
-=======
-    topic = "langgraph total guide"
->>>>>>> 9843c4b0cb1ce3a0fa1d99fb6ab60fb29a899735
     language = "Korean"
     output = writer(topic=topic, language=language)
 
@@ -33,6 +29,7 @@ def test_writer():
     saved_files = save_article_to_file(
         output, topic, language, output_dir, generation_params
     )
+
 
 if __name__ == "__main__":
     dspy.configure_cache(
