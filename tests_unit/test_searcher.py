@@ -1,4 +1,4 @@
-from websearch.searcher import ReACTSearcher, tool_search_web, QuerySearcher
+from agents.searcher import ReACTSearcher, tool_search_web, QuerySearcher
 from utils.llm import llm_setup
 import click
 

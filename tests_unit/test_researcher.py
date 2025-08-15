@@ -11,7 +11,7 @@ import click
 def test_researcher(topic, mode, engine):
     """Test the researcher tool"""
 
-    llm_setup("gemini/gemini-2.5-flash-lite", cache=True, extra_options={"max_tokens": 4096})
+    llm_setup("gemini/gemini-2.5-flash-lite", cache=True, extra_options={"max_tokens": 6048})
 
     planner = ArticlePlanner(mode=mode, engine=engine, verbose=False)
     result = planner.forward(topic)
@@ -23,7 +23,7 @@ def test_researcher(topic, mode, engine):
     )
     output_researcher = researcher(
         topic=topic,
-        outline=result.outline,
+        outline_str=result.outline_str,
         memory_content=result.memory_context,
     )
 

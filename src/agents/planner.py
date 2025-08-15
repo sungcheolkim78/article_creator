@@ -2,7 +2,7 @@ import dspy
 from typing import Dict, Optional
 import json
 import click
-from websearch.searcher import tool_search_web
+from agents.searcher import tool_search_web
 
 
 class ArticlePlan(dspy.Signature):
@@ -93,7 +93,7 @@ class ArticlePlanner(dspy.Module):
         return dspy.Prediction(
             research_strategy=output.research_strategy,
             action_plan=output.action_plan,
-            outline=outline_str,
+            outline_str=outline_str,
             memory_context=memory_context,
         )
 
@@ -103,7 +103,7 @@ class AnalyzedInfo(dspy.Signature):
 
     question: str = dspy.InputField()
     related_content: str = dspy.InputField()
-    analysis_content: str = dspy.OutputField()
+    analysis_content: str = dspy.OutputField(desc="markdown content")
 
 
 def tool_analyze(question: str, related_content: str) -> str:
@@ -118,7 +118,9 @@ class SynthesizedInfo(dspy.Signature):
     analysis_content: str = dspy.InputField()
     outline: str = dspy.InputField()
     research_gaps: str = dspy.InputField()
-    synthesized_content: str = dspy.OutputField()
+
+    new_outline: str = dspy.OutputField()
+    synthesized_content: str = dspy.OutputField(desc="Additional content to fill the research gap in markdown format.")
 
 
 def tool_synthesize(analysis_content: str, outline: str, research_gaps: str) -> str:
