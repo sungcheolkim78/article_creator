@@ -171,25 +171,3 @@ class ReACTSearcher(BaseSearcher):
         search_summary += "\n"
 
         return search_summary, sources, proc_info
-
-
-@request_cache()
-def tool_search_web(query: str, mode: str = "query", engine: str = "tavily", verbose: bool = False) -> str:
-    """Generate a search summary for the given query using the ReACTSearcher"""
-
-    if mode == "react":
-        searcher = ReACTSearcher(engine=engine, verbose=verbose)
-    elif mode == "query":
-        searcher = QuerySearcher(engine=engine, verbose=verbose)
-    else:
-        raise ValueError(f"Invalid mode: {mode}")
-
-    output = searcher(query)
-
-    return json.dumps(
-        {
-            "query": query,
-            "summary": output.summary,
-            "sources": "\n".join([item.to_markdown() for item in output.sources]),
-        }
-    )

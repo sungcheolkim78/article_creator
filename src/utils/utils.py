@@ -1,22 +1,6 @@
 import os
 from typing import Any, Optional, List
 
-from websearch.bravesearch import OptimizedBraveSearch
-from websearch.ddgsearch import OptimizedDDGSearch
-
-
-def setup_search_tool(search_tool_name: str) -> Optional[Any]:
-    """Setup and return the search tool based on user selection."""
-    if search_tool_name == "brave":
-        brave_api_key = os.getenv("BRAVE_SEARCH_API_KEY")
-        if not brave_api_key:
-            return None
-        return OptimizedBraveSearch(api_key=brave_api_key, k=5, source="web")
-    elif search_tool_name == "ddg":
-        return OptimizedDDGSearch(k=5)
-    else:
-        return None
-
 
 def get_available_languages() -> List[str]:
     """Get list of available languages."""

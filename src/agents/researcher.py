@@ -1,60 +1,45 @@
 import dspy
 import json
 import click
-from agents.searcher import tool_search_web
-from agents.planner import tool_analyze, tool_synthesize, tool_outline
+from pathlib import Path
+from datetime import datetime
+
+from agents.tools import MemoryTools
 
 
 class ReACTGoal(dspy.Signature):
-    "The goal is to research the topic and create a comprehensive outline and content about the topic."
+    "The goal is to research the topic and create a comprehensive outline and collect orgarnized information."
     topic: str = dspy.InputField()
-    outline: dict[str, list[str]] = dspy.InputField()
+    outline: str = dspy.InputField()
     memory_content: str = dspy.InputField()
 
     final_title: str = dspy.OutputField()
-    final_outline: dict[str, list[str]] = dspy.OutputField()
-    final_content: str = dspy.OutputField()
+    final_sections: list[str] = dspy.OutputField()
+    final_section_subheadings: dict[str, list[str]] = dspy.OutputField()
 
 
 class ArticleReACTResearcher(dspy.Module):
-    def __init__(self, strategy: str, action_plan: str, verbose: bool = False):
-        ReACTGoal.instructions += "\n" + strategy + "\n" + action_plan
+    def __init__(self, memory_tools: MemoryTools, verbose: bool = False):
+        self.memory_tools = memory_tools
+
+        ReACTGoal.instructions += "\n" + self.memory_tools.research_strategy + "\n" + self.memory_tools.action_plan
         self.react = dspy.ReAct(
             ReACTGoal, 
-            tools=[tool_search_web, tool_analyze, tool_synthesize, tool_outline], 
+            tools=self.memory_tools.tool_list(),
             max_iters=10)
         self.verbose = verbose
 
     def forward(
         self, topic: str, outline_str: str, memory_content: str
     ) -> dspy.Prediction:
-        tmp = json.loads(outline_str)
-        output = self.react(topic=topic, outline=tmp['outline'], memory_content=memory_content)
+        output = self.react(topic=topic, outline=outline_str, memory_content=memory_content)
 
-        iterations = 1
-        source_content = ""
-        tool_name = ""
         for k, v in output.trajectory.items():
             if self.verbose:
                 print(click.style(k, fg="blue"))
                 print(click.style(v, fg="green"))
                 print()
-            if k.startswith("tool_name"):
-                tool_name = v
-
-            if tool_name == "tool_search_web" and k.startswith("observation"):
-                temp = json.loads(v)
-                memory_content += f"\n{temp['summary']}"
-                source_content += f"\n{temp['sources']}"
-                iterations += 1
-
-            if tool_name == "tool_analyze" and k.startswith("observation"):
-                memory_content += f"\n## Analyzed Contents\n\n{v}\n"
-                iterations += 1
-
-            if tool_name == "tool_synthesize" and k.startswith("observation"):
-                memory_content += f"\n## Synthesizd Contents\n\n{v}\n"
-                iterations += 1
+        iterations = len(output.trajectory) // 4
 
         if self.verbose:
             print(click.style(output.reasoning, fg="yellow"))
@@ -62,6 +47,13 @@ class ArticleReACTResearcher(dspy.Module):
         print(f"ArticleReACTResearcher|{iterations} Iterations|{output.final_title}")
         return dspy.Prediction(
             final_title=output.final_title,
-            final_outline=output.final_outline,
-            final_content=memory_content,
+            final_sections=output.final_sections,
+            final_section_subheadings=output.final_section_subheadings,
         )
+
+    def save(self, filepath: str):
+        now = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filepath = Path(filepath)
+        filepath = filepath.with_stem(filepath.stem + f"_{now}")
+        with open(filepath, "w") as f:
+            f.write(self.memory_tools.get_findings() + "\n## Sources\n\n" + self.memory_tools.get_sources())

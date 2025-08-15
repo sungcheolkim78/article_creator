@@ -1,5 +1,6 @@
 from agents.researcher import ArticleReACTResearcher
 from agents.planner import ArticlePlanner
+from agents.tools import MemoryTools
 from utils.llm import llm_setup
 import click
 
@@ -13,25 +14,25 @@ def test_researcher(topic, mode, engine):
 
     llm_setup("gemini/gemini-2.5-flash-lite", cache=True, extra_options={"max_tokens": 6048})
 
-    planner = ArticlePlanner(mode=mode, engine=engine, verbose=False)
-    result = planner.forward(topic)
+    memory_tools = MemoryTools(mode=mode, engine=engine, verbose=False)
 
-    researcher = ArticleReACTResearcher(
-        result.research_strategy,
-        result.action_plan,
-        verbose=True,
-    )
-    output_researcher = researcher(
+    planner = ArticlePlanner(memory_tools, verbose=False)
+    outcome = planner.forward(topic)
+
+    researcher = ArticleReACTResearcher(memory_tools, verbose=True)
+    outcome = researcher(
         topic=topic,
-        outline_str=result.outline_str,
-        memory_content=result.memory_context,
+        outline_str=memory_tools.outline_str,
+        memory_content=memory_tools.get_findings(),
     )
+    researcher.save(f"data/research/researcher_{topic.replace(' ', '_')}.md")
 
-    print(output_researcher.final_title)
+    print(outcome.final_title)
     print("-" * 100)
-    print(output_researcher.final_outline)
+    print(outcome.final_sections)
     print("-" * 100)
-    print(output_researcher.final_content)
+    print(outcome.final_section_subheadings)
+    print("-" * 100)
 
 
 if __name__ == "__main__":

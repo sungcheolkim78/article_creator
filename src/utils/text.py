@@ -2,9 +2,10 @@ from datetime import datetime
 from typing import Dict, Any, Optional
 from pathlib import Path
 import logging
+import dspy
+import unicodedata
 
 from utils.llm import llm_setup
-from utils.utils import setup_search_tool
 from core.enhanced_article_creator import EnhancedArticleCreator
 from core.websearch_article_creator import WebSearchArticleCreator
 from core.react_article import ArticleReACTAgent
@@ -77,9 +78,7 @@ def calculate_article_metrics(article_data: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def save_article_to_file(
-    article_data: Dict[str, Any],
-    topic: str,
-    language: str,
+    article_data: dspy.Prediction,
     output_dir: str,
     generation_params: Dict[str, Any],
 ) -> Optional[Dict[str, str]]:
@@ -87,32 +86,30 @@ def save_article_to_file(
 
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
+    topic = generation_params["topic"]
+    language = generation_params["language"]
 
     topic_slug = topic.lower().replace(" ", "-").replace(",", "")
     lang_slug = language[:3].lower()
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamp = generation_params["generation_time"]
 
     saved_files = {}
 
     # Save translated version
     translated_file = output_path / f"{topic_slug}-{lang_slug}-{timestamp}.md"
     with open(translated_file, "w", encoding="utf-8") as f:
-        f.write(f"# {article_data.get('title', 'Untitled Article')}\n\n")
-        for section in article_data.get("sections_translated", []):
-            f.write(section)
-            f.write("\n\n")
+        f.write(f"# {article_data.title}\n\n")
+        for section in article_data.sections_translated:
+            f.write(f"{section}\n\n")
 
         # Add sources
-        if hasattr(article_data, "key_sources") and article_data.key_sources:
-            f.write("## Sources\n\n")
-            for source in article_data.key_sources:
-                f.write(f"- {source}\n")
-
-    saved_files["translated_file"] = str(translated_file)
+        sources = article_data.key_sources.replace('\n\n', '\n')
+        sources = unicodedata.normalize('NFKC', sources)
+        f.write(f"## Sources\n\n{sources}")
 
     # Save English version
     english_file = output_path / f"{topic_slug}-en-{timestamp}.md"
-    with open(english_file, "w", encoding="utf-8") as f:
+    with open(english_file, "w") as f:
         f.write(f"# {article_data.get('title', 'Untitled Article')}\n\n")
         for section in article_data.get("sections_en", []):
             f.write(section)
@@ -121,10 +118,8 @@ def save_article_to_file(
         # Add sources
         if hasattr(article_data, "key_sources") and article_data.key_sources:
             f.write("## Sources\n\n")
-            for source in article_data.key_sources:
-                f.write(f"- {source}\n")
+            f.write(article_data.get("key_sources", ""))
 
-    saved_files["english_file"] = str(english_file)
 
     # Save research summary if available
     if hasattr(article_data, "research_summary") and article_data.research_summary:

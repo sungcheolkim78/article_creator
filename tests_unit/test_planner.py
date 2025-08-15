@@ -1,5 +1,6 @@
 import dspy
 from agents.planner import ArticlePlanner
+from agents.tools import MemoryTools
 from utils.llm import llm_setup
 import click
 
@@ -11,9 +12,10 @@ import click
 def test_planner(topic, mode, engine):
     """Test the planner tool"""
 
-    llm_setup("gemini/gemini-2.5-flash-lite", cache=True, extra_options={"max_tokens": 4096})
+    llm_setup("gemini/gemini-2.5-flash-lite", cache=True, extra_options={"max_tokens": 6048})
+    memory_tools = MemoryTools(mode=mode, engine=engine, verbose=False)
 
-    planner = ArticlePlanner(mode=mode, engine=engine, verbose=True)
+    planner = ArticlePlanner(memory_tools, verbose=True)
     result = planner.forward(topic)
 
     print("-" * 100)
@@ -21,10 +23,7 @@ def test_planner(topic, mode, engine):
     print("-" * 100)
     print(result.action_plan)
     print("-" * 100)
-    print(result.outline)
-    print("-" * 100)
-    print(result.memory_context)
-    print("-" * 100)
+    print(result.outline_str)
 
 
 if __name__ == "__main__":
