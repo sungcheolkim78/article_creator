@@ -1,5 +1,4 @@
 import dspy
-import json
 import click
 from pathlib import Path
 from datetime import datetime

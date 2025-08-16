@@ -12,7 +12,9 @@ import click
 def test_planner(topic, mode, engine):
     """Test the planner tool"""
 
-    llm_setup("gemini/gemini-2.5-flash-lite", cache=True, extra_options={"max_tokens": 6048})
+    model = "gemini/gemini-2.5-flash-lite"
+    model = "anthropic/claude-3-5-haiku-latest"
+    llm_setup(model, cache=True, extra_options={"max_tokens": 6048})
     memory_tools = MemoryTools(mode=mode, engine=engine, verbose=False)
 
     planner = ArticlePlanner(memory_tools, verbose=True)

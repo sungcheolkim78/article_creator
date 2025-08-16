@@ -1,6 +1,4 @@
 import dspy
-from typing import Dict, Optional
-import json
 import click
 from agents.tools import MemoryTools
 

@@ -1,10 +1,8 @@
 import dspy
 import click
-import json
 from datetime import datetime
 from typing import Literal
 
-from dspy.clients.cache import request_cache
 from websearch.base import BaseSearcher
 from websearch.schema import SearchResult
 

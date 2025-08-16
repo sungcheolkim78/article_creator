@@ -133,11 +133,11 @@ class MemoryTools:
 
 
 class AnalyzedInfo(dspy.Signature):
-    """Given a question and web search results, generate a comprehensive analysis of the question."""
+    """Given a question and web search results, generate a analysis of the question. It can include the main findings, the potential gaps, and the potential solutions."""
 
     question: str = dspy.InputField()
     web_search_results: str = dspy.InputField()
-    analysis_content: str = dspy.OutputField(desc="markdown content")
+    analysis_content: str = dspy.OutputField(desc="one or two paragraphs of analysis including citations. citations should be in markdown format such as [^1], [^2], etc.")
 
 
 class ArticleOutline(dspy.Signature):
