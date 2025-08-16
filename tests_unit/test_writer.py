@@ -13,8 +13,9 @@ from utils.text import save_article_to_file
 @click.option("--mode", type=str, default="query")
 @click.option("--engine", type=str, default="tavily")
 def test_writer(topic, language, mode, engine):
-    model = "gemini/gemini-2.5-flash-lite"
     model = "anthropic/claude-3-5-haiku-latest"
+    model = "openai/gpt-4o-mini"
+    model = "gemini/gemini-2.5-flash"
     
     output_dir = "data/articles"
     generation_params = {
