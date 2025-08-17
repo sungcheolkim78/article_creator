@@ -24,44 +24,43 @@ def llm_setup(model_name: str, cache: bool = True, extra_options: dict = {}) -> 
     # load environment variables
     load_dotenv()
 
+    options = extra_options
+
     # openrouter goes first due to the naming pattern such as openrouter/openai/gpt-4o-mini
     if "openrouter" in model_name:
         api_key = os.getenv("OPENROUTER_API_KEY")
-        options = {
+        options.update({
             "temperature": 0.1,
             "top_p": 0.9,
-        }
+        })
     elif "openai" in model_name:
         api_key = os.getenv("OPENAI_API_KEY")
-        options = {
-            "temperature": 0,
-            "top_p": 0.9,
-            "frequency_penalty": 0,
-            "presence_penalty": 0,
-        }
+        options.update({
+            "max_tokens": 20000,
+            "temperature": 1.0,
+        })
     elif "anthropic" in model_name:
         api_key = os.getenv("ANTHROPIC_API_KEY")
-        options = {
+        options.update({
             "temperature": 0,
             "top_p": 0.9,
-        }
+        })
     elif "gemini" in model_name:
         api_key = os.getenv("GEMINI_API_KEY")
-        options = {
+        options.update({
             "temperature": 1.0,
-        }
+        })
     elif "ollama" in model_name:
         api_key = ""
-        options = {
+        options.update({
             "api_base": "http://192.168.1.4:11434",
             "temperature": 1.0,
             "top_p": 0.9,
             "max_tokens": 8192,
-        }
+        })
     else:
         raise ValueError(f"Invalid model name: {model_name}")
 
-    options.update(extra_options)
 
     lm = dspy.LM(
         model_name,

@@ -18,6 +18,8 @@ def test_writer(topic, language, mode, engine, model, output_dir):
     model_list = [
         "anthropic/claude-3-5-haiku-latest",
         "openai/gpt-4o-mini",
+        "openai/gpt-5-mini",
+        "openai/gpt-oss-20b",
         "gemini/gemini-2.5-flash-lite",
         "gemini/gemini-2.5-flash",
         "openrouter/z-ai/glm-4.5"
