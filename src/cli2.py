@@ -22,11 +22,12 @@ def test_writer(topic, language, mode, engine, model, output_dir):
         "openai/gpt-oss-20b",
         "gemini/gemini-2.5-flash-lite",
         "gemini/gemini-2.5-flash",
-        "openrouter/z-ai/glm-4.5"
+        "openrouter/z-ai/glm-4.5",
+        "ollama_chat/qwen3:8b",
     ]
     if model not in model_list:
         raise ValueError(f"Invalid model: {model}")
-    
+
     generation_params = {
         "topic": topic,
         "language": language,
