@@ -41,9 +41,9 @@ class BaseSearcher(dspy.Module):
         search_summary, sources, proc_info = self._search(query)
         markdown = search_summary + f"\n## Sources\n\n" + sources + "\n"
 
-        execution_time = time.time() - start_time
+        self.execution_time = time.time() - start_time
         print(
-            f"{self._name}|{category}|{query}|{proc_info}|{self.engine}|{execution_time:.2f}s"
+            f"{self._name}|{category}|{query}|{proc_info}|{self.engine}|{self.execution_time:.2f}s"
         )
 
         return dspy.Prediction(

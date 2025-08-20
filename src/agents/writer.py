@@ -1,4 +1,5 @@
 import dspy
+from pathlib import Path
 from agents.tools import MemoryTools
 from agents.planner import ArticlePlanner
 from agents.researcher import ArticleReACTResearcher
@@ -63,26 +64,27 @@ class ArticleWriter(dspy.Module):
         # Step 1: Plan the article
         print(f"ArticleWriter|Planning article...")
         self.planner(topic)
+        self.topic = topic
 
         # Step 2: Research the article
         print(f"ArticleWriter|Researching article...")
-        researcher = ArticleReACTResearcher(
+        self.researcher = ArticleReACTResearcher(
             self.memory_tools,
             verbose=self.verbose,
         )
-        output_researcher = researcher(
+        output_researcher = self.researcher(
             topic=topic,
             outline_str=self.memory_tools.outline_str,
             memory_content=self.memory_tools.get_findings(),
         )
-        researcher.save(f"data/research/researcher_{topic.replace(' ', '-')}.md")
 
         # Step 3: Generate the outline
         title = output_researcher.final_title
         sections = output_researcher.final_sections
         section_subheadings = output_researcher.final_section_subheadings
+        print(self.memory_tools.report())
 
-        # Phase 3: Generate sections with research integration
+        # Phase 4: Generate sections with research integration
         sections_en = []
         sections_translated = []
         print(
@@ -92,7 +94,7 @@ class ArticleWriter(dspy.Module):
         for heading in sections:
             subheadings = section_subheadings[heading]
             print(f"ArticleWriter|Generating section: {heading}")
-            print(subheadings)
+            print('\n'.join([f"- {sub}" for sub in subheadings]))
 
             #section_content = self.find_context(
             #    topic=heading,
@@ -133,3 +135,8 @@ class ArticleWriter(dspy.Module):
             sections_translated=sections_translated,
             key_sources=self.memory_tools.get_sources(),
         )
+
+    def save_research(self, output_dir: str, timestamp: str):
+        topic_slug = self.topic.lower().replace(" ", "-").replace(",", "")
+        filepath = Path(output_dir) / f"{topic_slug}-research-{timestamp}.md"
+        self.researcher.save(filepath)

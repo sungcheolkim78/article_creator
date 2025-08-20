@@ -51,8 +51,5 @@ class ArticleReACTResearcher(dspy.Module):
         )
 
     def save(self, filepath: str):
-        now = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filepath = Path(filepath)
-        filepath = filepath.with_stem(filepath.stem + f"_{now}")
         with open(filepath, "w") as f:
             f.write(self.memory_tools.get_findings() + "\n## Sources\n\n" + self.memory_tools.get_sources())

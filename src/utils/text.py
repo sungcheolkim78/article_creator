@@ -14,18 +14,16 @@ from core.react_article import ArticleReACTAgent
 logger = logging.getLogger("text")
 
 
-def create_click_options_table(
-    topic: str,
-    language: str,
-    output_dir: str,
-    mode: str,
-    use_react: bool,
-    llm_model: str,
-    search_tool_name: str,
-) -> str:
+def create_options_table(params: Dict[str, Any]) -> str:
     """Create a markdown table with the click options used to generate the article."""
 
-    generation_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    topic = params.get("topic", "Untitled Article")
+    language = params["language"]
+    output_dir = params["output_dir"]
+    mode = params.get("mode", "query")
+    engine = params.get("engine", "tavily")
+    model = params.get("model", "gemini/gemini-2.5-flash")
+    generation_time = params["generation_time"]
 
     table = f"""
 ## Generation Parameters
@@ -37,23 +35,21 @@ This article was generated using the following parameters:
 | **Topic** | {topic} |
 | **Language** | {language} |
 | **Output Directory** | {output_dir} |
-| **Generation Mode** | {mode} |
-| **ReACT Agent** | {"Enabled" if use_react else "Disabled"} |
-| **LLM Model** | {llm_model} |
-| **Search Tool** | {search_tool_name} |
+| **LLM Model** | {model} |
+| **Search Mode** | {mode} |
+| **Search Engine** | {engine} |
 | **Generated At** | {generation_time} |
 
 ### Command Used
 
 ```bash
-python src/enhanced_article_creator.py \\
+python src/cli2.py \\
     --topic "{topic}" \\
     --language "{language}" \\
     --output_dir "{output_dir}" \\
+    --model "{model}" \\
     --mode {mode} \\
-    --llm_model "{llm_model}" \\
-    --search_tool_name "{search_tool_name}" \\
-    {"--use_react" if use_react else ""}
+    --engine "{engine}"
 ```
 """
     return table
@@ -79,69 +75,43 @@ def calculate_article_metrics(article_data: Dict[str, Any]) -> Dict[str, Any]:
 
 def save_article_to_file(
     article_data: dspy.Prediction,
-    output_dir: str,
     generation_params: Dict[str, Any],
 ) -> Optional[Dict[str, str]]:
     """Save the generated article to files."""
 
+    output_dir = generation_params["output_dir"]
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
+
     topic = generation_params["topic"]
     language = generation_params["language"]
-
     topic_slug = topic.lower().replace(" ", "-").replace(",", "")
     lang_slug = language[:3].lower()
     timestamp = generation_params["generation_time"]
 
+    options_table = create_options_table(generation_params)
+
     saved_files = {}
+
+    def write(f, article_data, options_table, translated=False):
+        f.write(f"# {article_data.title}\n\n")
+        sections = article_data.sections_translated if translated else article_data.sections_en
+        for i, section in enumerate(sections):
+            f.write(f"{i+1}. {section}\n\n")
+        sources = article_data.key_sources.replace("\n\n", "\n")
+        sources = unicodedata.normalize("NFKC", sources)
+        f.write(options_table)
+        f.write(f"## Sources\n\n{sources}")
 
     # Save translated version
     translated_file = output_path / f"{topic_slug}-{lang_slug}-{timestamp}.md"
     with open(translated_file, "w", encoding="utf-8") as f:
-        f.write(f"# {article_data.title}\n\n")
-        for section in article_data.sections_translated:
-            f.write(f"{section}\n\n")
-
-        # Add sources
-        sources = article_data.key_sources.replace('\n\n', '\n')
-        sources = unicodedata.normalize('NFKC', sources)
-        f.write(f"## Sources\n\n{sources}")
+        write(f, article_data, options_table, translated=True)
 
     # Save English version
     english_file = output_path / f"{topic_slug}-en-{timestamp}.md"
     with open(english_file, "w") as f:
-        f.write(f"# {article_data.get('title', 'Untitled Article')}\n\n")
-        for section in article_data.get("sections_en", []):
-            f.write(section)
-            f.write("\n\n")
-
-        # Add sources
-        if hasattr(article_data, "key_sources") and article_data.key_sources:
-            f.write("## Sources\n\n")
-            f.write(article_data.get("key_sources", ""))
-
-
-    # Save research summary if available
-    if hasattr(article_data, "research_summary") and article_data.research_summary:
-        research_file = output_path / f"{topic_slug}-research-{timestamp}.md"
-        with open(research_file, "w", encoding="utf-8") as f:
-            f.write(
-                f"# Research Summary: {article_data.get('title', 'Untitled Article')}\n\n"
-            )
-            f.write(article_data.research_summary)
-            f.write("\n\n")
-            f.write("## Generation Parameters\n\n")
-            f.write(f"- Topic: {generation_params['topic']}\n")
-            f.write(f"- Language: {generation_params['language']}\n")
-            f.write(f"- Mode: {generation_params['mode']}\n")
-            f.write(f"- LLM Model: {generation_params['llm_model']}\n")
-            f.write(f"- Search Tool: {generation_params['search_tool_name']}\n")
-            f.write(
-                f"- ReACT Agent: {'Enabled' if generation_params['use_react'] else 'Disabled'}\n"
-            )
-            f.write(f"- Generated At: {generation_params['generation_time']}\n")
-
-        saved_files["research_file"] = str(research_file)
+        write(f, article_data, options_table)
 
     return saved_files
 
