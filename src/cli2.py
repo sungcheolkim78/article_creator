@@ -34,6 +34,7 @@ def test_writer(topic, language, mode, engine, model, output_dir):
         "mode": mode,
         "engine": engine,
         "llm_model": model,
+        "output_dir": output_dir,
         "generation_time": datetime.now().strftime("%Y%m%d_%H%M%S"),
     }
 
@@ -42,7 +43,8 @@ def test_writer(topic, language, mode, engine, model, output_dir):
     writer = ArticleWriter(memory_tools, verbose=False)
     output = writer(topic=topic, language=language)
 
-    saved_files = save_article_to_file(output, output_dir, generation_params)
+    saved_files = save_article_to_file(output, generation_params)
+    writer.save_research(output_dir, generation_params["generation_time"])
 
 
 if __name__ == "__main__":

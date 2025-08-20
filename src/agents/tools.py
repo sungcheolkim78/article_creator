@@ -1,9 +1,35 @@
 import json
+import time
 from typing import Callable
+from functools import wraps
 
 from agents.searcher import ReACTSearcher, QuerySearcher
 from dspy.clients.cache import request_cache
 import dspy
+
+
+def execution_time(func):
+    """Decorator to calculate and store execution time of functions."""
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        start_time = time.time()
+        result = func(*args, **kwargs)
+        end_time = time.time()
+        execution_time_seconds = end_time - start_time
+        
+        # Store execution time in the instance if it's a method
+        if args and hasattr(args[0], 'execution_times'):
+            if not hasattr(args[0], 'execution_times'):
+                args[0].execution_times = {}
+            if func.__name__ not in args[0].execution_times:
+                args[0].execution_times[func.__name__] = 0
+            args[0].execution_times[func.__name__] += execution_time_seconds
+        
+        # Print execution time for debugging
+        print(f"⏱️  {func.__name__} executed in {execution_time_seconds:.2f} seconds")
+        
+        return result
+    return wrapper
 
 
 class MemoryTools:
@@ -17,6 +43,8 @@ class MemoryTools:
         self.analysis_results = []
         self.gap_results = []
         self.sources = []
+        self.search_time = 0
+        self.execution_times = {}  # Store execution times for all decorated functions
 
         self.mode = mode
         self.engine = engine
@@ -28,6 +56,7 @@ class MemoryTools:
         self.planner = dspy.ChainOfThought(ArticlePlan)
 
     @request_cache()
+    @execution_time
     def search_web(self, query: str) -> str:
         """Search the web for the given query, and return the search summary."""
         print("... Use search_web tool ...")
@@ -43,6 +72,7 @@ class MemoryTools:
 
         self.search_results.append(output.summary)
         self.sources.extend(output.sources)
+        self.search_time += searcher.execution_time
 
         return json.dumps(
             {
@@ -51,6 +81,7 @@ class MemoryTools:
             }
         )
 
+    @execution_time
     def analyze(self, question: str) -> str:
         """Generate a comprehensive analysis of the question with internal web search results."""
         print("... Use analyze tool ...")
@@ -60,6 +91,7 @@ class MemoryTools:
         self.analysis_results.append(output_str)
         return output_str
 
+    @execution_time
     def outline(self, topic: str, current_outline: str) -> str:
         """Given a topic, previous outline, and research findings, generate a comprehensive outline for an article."""
         print("... Use outline tool ...")
@@ -75,6 +107,7 @@ class MemoryTools:
 
         return self.outline_str
 
+    @execution_time
     def research_gap(self, outline_str: str) -> str:
         """Generate a research gap for the given outline and research findings."""
         print("... Use research_gap tool ...")
@@ -83,6 +116,7 @@ class MemoryTools:
         self.gap_results.append(output)
         return output
 
+    @execution_time
     def plan(self, topic: str, research_gap: str) -> str:
         """Generate a research plan for the given topic and research gap."""
         print("... Use plan tool ...")
@@ -130,6 +164,18 @@ class MemoryTools:
 
     def tool_list(self) -> list[Callable]:
         return [self.search_web, self.outline, self.analyze]
+
+    def report(self) -> str:
+        report = "## Execution Times\n"
+        for func_name, time in self.execution_times.items():
+            report += f"- {func_name}: {time:.2f} seconds\n"
+        report += f"- Total search time: {self.search_time:.2f} seconds\n"
+        report += "\n## Finding Statistics\n"
+        report += f"- Total findings: {len(self.search_results)}\n"
+        report += f"- Total analysis: {len(self.analysis_results)}\n"
+        report += f"- Total gap: {len(self.gap_results)}\n"
+        report += f"- Total sources: {len(self.sources)}\n"
+        return report
 
 
 class AnalyzedInfo(dspy.Signature):
