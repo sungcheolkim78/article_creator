@@ -36,7 +36,8 @@ class SearchResult:
         return msg
 
     def to_markdown(self):
-        return f"[^{self.sid}]: [{self.title}]({self.url})"
+        clean_title = self.title.replace("(", "[").replace(")", "]")
+        return f"[^{self.sid}]: [{clean_title}]({self.url})"
 
     def to_json(self):
         return json.dumps(

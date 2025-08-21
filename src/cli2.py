@@ -19,6 +19,7 @@ def test_writer(topic, language, mode, engine, model, output_dir):
         "anthropic/claude-3-5-haiku-latest",
         "openai/gpt-4o-mini",
         "openai/gpt-5-mini",
+        "openai/gpt-5-nano",
         "openai/gpt-oss-20b",
         "gemini/gemini-2.5-flash-lite",
         "gemini/gemini-2.5-flash",
@@ -33,7 +34,7 @@ def test_writer(topic, language, mode, engine, model, output_dir):
         "language": language,
         "mode": mode,
         "engine": engine,
-        "llm_model": model,
+        "model": model,
         "output_dir": output_dir,
         "generation_time": datetime.now().strftime("%Y%m%d_%H%M%S"),
     }

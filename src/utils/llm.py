@@ -35,10 +35,18 @@ def llm_setup(model_name: str, cache: bool = True, extra_options: dict = {}) -> 
         })
     elif "openai" in model_name:
         api_key = os.getenv("OPENAI_API_KEY")
+        if "gpt-5" in model_name:
+            options.update({
+                "max_tokens": 20000,
+            })
+        else:
+            options.update({
+                "max_tokens": 16384,
+            })
         options.update({
-            "max_tokens": 20000,
             "temperature": 1.0,
         })
+        
     elif "anthropic" in model_name:
         api_key = os.getenv("ANTHROPIC_API_KEY")
         options.update({

@@ -4,6 +4,7 @@ from pathlib import Path
 import logging
 import dspy
 import unicodedata
+import re
 
 from utils.llm import llm_setup
 from core.enhanced_article_creator import EnhancedArticleCreator
@@ -97,7 +98,9 @@ def save_article_to_file(
         f.write(f"# {article_data.title}\n\n")
         sections = article_data.sections_translated if translated else article_data.sections_en
         for i, section in enumerate(sections):
-            f.write(f"{i+1}. {section}\n\n")
+            section = re.sub(r'^## ', f'## {i + 1}. ', section, flags=re.MULTILINE)
+            f.write(section)
+            f.write("\n\n")
         sources = article_data.key_sources.replace("\n\n", "\n")
         sources = unicodedata.normalize("NFKC", sources)
         f.write(options_table)
