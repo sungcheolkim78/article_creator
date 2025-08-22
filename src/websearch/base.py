@@ -1,6 +1,7 @@
 import dspy
 from websearch.schema import SearchResult
 import time
+import re
 from typing import Literal
 
 
@@ -18,7 +19,9 @@ class Summary(dspy.Signature):
 
     query: str = dspy.InputField()
     results: str = dspy.InputField()
-    summary: str = dspy.OutputField(desc="The summary of the text")
+    summary: str = dspy.OutputField(
+        desc="The summary of the snippets. Use the citation numbers in [^{number}] to reference the snippets."
+    )
 
 
 class BaseSearcher(dspy.Module):
@@ -67,9 +70,15 @@ class BaseSearcher(dspy.Module):
     def _get_summary(self, query: str, results: list[SearchResult]) -> str:
         query_summary = ""
         for result in results:
-            query_summary += f"\n- {result.title}|{result.snippet}\n"
+            query_summary += f"- [^{result.sid}] Title: {result.title}\nSnippet: {result.snippet}\n"
 
-        return self.summary(query=query, results=query_summary).summary
+        print(query_summary)
+        summary = self.summary(query=query, results=query_summary).summary
+        
+        # Apply regex to change [number] to [^number] for any digit
+        summary = re.sub(r'\[(\d+)\]', r'[^\1]', summary)
+        
+        return summary
 
     @property
     def search_results(self) -> list[SearchResult]:

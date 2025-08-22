@@ -45,6 +45,7 @@ class QuerySearcher(BaseSearcher):
 
         self.search_web = search_web
         self.search_news = search_news
+        self.use_llm_for_web_news = False
 
     def _search(self, query: str) -> tuple[str, str, str]:
         query_list = self.query_optimizer(original_query=query).optimized_search_query
@@ -53,19 +54,21 @@ class QuerySearcher(BaseSearcher):
 
         query_summaries = []
         for item in query_list:
-            temp = self.select_source(query=item)
-            if self.verbose:
-                print(click.style(f"Reasoning: {temp.reasoning}", fg="yellow"))
-            source = temp.source
+            if self.use_llm_for_web_news:
+                temp = self.select_source(query=item)
+                if self.verbose:
+                    print(click.style(f"Reasoning: {temp.reasoning}", fg="yellow"))
+                source = temp.source
+            else:
+                source = "web"  # default to web if not using llm for web/news selection
             if source == "web":
                 web_results = self.search_web(item, self.k)
             elif source == "news":
                 web_results = self.search_news(item, self.k)
             
             web_results = [SearchResult.from_json(result) for result in web_results]
-            web_citations = " ".join([f"[^{item.sid}]" for item in web_results])
             web_summary = self._get_summary(item, web_results)
-            query_summaries.append(f"**{item} ({source}):** {web_summary} {web_citations}")
+            query_summaries.append(f"**{item} ({source}):** {web_summary}")
             self._add_search_results(web_results)
 
         proc_info = f"{len(query_list)} Sub-Queries|{len(self.search_results)} Results"

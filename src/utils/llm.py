@@ -63,8 +63,6 @@ def llm_setup(model_name: str, cache: bool = True, extra_options: dict = {}) -> 
         options.update({
             "api_base": "http://192.168.1.4:11434",
             "temperature": 1.0,
-            "top_p": 0.9,
-            "max_tokens": 8192,
         })
     else:
         raise ValueError(f"Invalid model name: {model_name}")
