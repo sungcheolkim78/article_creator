@@ -72,11 +72,11 @@ class BaseSearcher(dspy.Module):
         for result in results:
             query_summary += f"- [^{result.sid}] Title: {result.title}\nSnippet: {result.snippet}\n"
 
-        print(query_summary)
         summary = self.summary(query=query, results=query_summary).summary
         
         # Apply regex to change [number] to [^number] for any digit
         summary = re.sub(r'\[(\d+)\]', r'[^\1]', summary)
+        summary = re.sub(r'\[\^\{(\d+)\}\]', r'[^\1]', summary)
         
         return summary
 

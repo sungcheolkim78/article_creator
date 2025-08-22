@@ -60,9 +60,11 @@ def _get_text(
     return results
 
 
+@request_cache()
 def search_news(query: str, k: int = 3) -> List[SearchResult]:
     return [item.to_json() for item in _get_text(query, k=k, source="news")]
 
 
+@request_cache()
 def search_web(query: str, k: int = 3) -> List[SearchResult]:
     return [item.to_json() for item in _get_text(query, k=k, source="web")]

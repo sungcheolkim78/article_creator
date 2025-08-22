@@ -10,7 +10,7 @@ import click
 @click.option("--engine", type=str, default="tavily")
 @click.option("--verbose", type=bool, default=True)
 def test_basic_search(topic, model, mode, engine, verbose):
-    llm_options = llm_setup(model, cache=True)
+    lm = llm_setup(model, cache=True)
 
     if mode == "react":
         searcher = ReACTSearcher(engine=engine, verbose=verbose)
@@ -22,6 +22,13 @@ def test_basic_search(topic, model, mode, engine, verbose):
     result = searcher(topic)
 
     print(result.markdown)
+
+    print('-' * 100)
+    total_tokens = sum([history['usage'].get('total_tokens', 0) for history in lm.history])
+    total_cost = sum([history['cost'] for history in lm.history])
+    print(f"Total history: {len(lm.history)}")
+    print(f"Total tokens: {total_tokens}")
+    print(f"Total cost: ${total_cost:.8f}")
 
 
 if __name__ == "__main__":

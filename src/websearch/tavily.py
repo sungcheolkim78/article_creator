@@ -13,7 +13,6 @@ load_dotenv()
 tavily_client = TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
 
 
-@request_cache()
 def get_news(query: str, k: int, options: dict = {}) -> List[SearchResult]:
     # Use Tavily news search
     try:
@@ -35,7 +34,6 @@ def get_news(query: str, k: int, options: dict = {}) -> List[SearchResult]:
     ]
 
 
-@request_cache()
 def get_text(query: str, k: int, options: dict = {}) -> List[SearchResult]:
     # Use Tavily search
     try:
@@ -57,9 +55,11 @@ def get_text(query: str, k: int, options: dict = {}) -> List[SearchResult]:
     ]
 
 
+@request_cache()
 def search_news(query: str, k: int = 3) -> List[SearchResult]:
     return [item.to_json() for item in get_news(query, k=k)]
 
 
+@request_cache()
 def search_web(query: str, k: int = 3) -> List[SearchResult]:
     return [item.to_json() for item in get_text(query, k=k)]

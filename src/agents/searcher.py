@@ -48,9 +48,11 @@ class QuerySearcher(BaseSearcher):
         self.use_llm_for_web_news = False
 
     def _search(self, query: str) -> tuple[str, str, str]:
-        query_list = self.query_optimizer(original_query=query).optimized_search_query
+        outcome = self.query_optimizer(original_query=query)
+        query_list = outcome.optimized_search_query
         if self.verbose:
             print(click.style(f"Optimized query: {query} -> {query_list}", fg="yellow"))
+            print(click.style(f"Reasoning: {outcome.reasoning}", fg="yellow"))
 
         query_summaries = []
         for item in query_list:

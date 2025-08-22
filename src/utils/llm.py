@@ -78,7 +78,8 @@ def llm_setup(model_name: str, cache: bool = True, extra_options: dict = {}) -> 
         enable_disk_cache=cache,
         enable_memory_cache=cache,
     )
-    return options.update({"model_name": model_name, "cache": cache})
+    options.update({"model_name": model_name, "cache": cache})
+    return lm
 
 
 def check_environment(llm_model: str, search_tool_name: str) -> Dict[str, bool]:
