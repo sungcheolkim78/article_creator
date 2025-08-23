@@ -82,6 +82,17 @@ def llm_setup(model_name: str, cache: bool = True, extra_options: dict = {}) -> 
     return lm
 
 
+def get_llm_cost(lm: dspy.LM, verbose: bool = False) -> float:
+    """Get the cost of the LLM."""
+    total_tokens = sum([history['usage'].get('total_tokens', 0) for history in lm.history])
+    total_cost = sum([history['cost'] for history in lm.history])
+    if verbose:
+        print(f"Total history: {len(lm.history)}")
+        print(f"Total tokens: {total_tokens}")
+        print(f"Total cost: ${total_cost:.8f}")
+    return total_cost
+
+
 def check_environment(llm_model: str, search_tool_name: str) -> Dict[str, bool]:
     """Check if required environment variables are set."""
     results = {

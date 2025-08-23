@@ -1,5 +1,5 @@
 from agents.searcher import ReACTSearcher, QuerySearcher
-from utils.llm import llm_setup
+from utils.llm import llm_setup, get_llm_cost
 import click
 
 
@@ -24,11 +24,7 @@ def test_basic_search(topic, model, mode, engine, verbose):
     print(result.markdown)
 
     print('-' * 100)
-    total_tokens = sum([history['usage'].get('total_tokens', 0) for history in lm.history])
-    total_cost = sum([history['cost'] for history in lm.history])
-    print(f"Total history: {len(lm.history)}")
-    print(f"Total tokens: {total_tokens}")
-    print(f"Total cost: ${total_cost:.8f}")
+    get_llm_cost(lm, verbose=True)
 
 
 if __name__ == "__main__":
