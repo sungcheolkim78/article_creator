@@ -15,6 +15,8 @@ dependencies = [
     "ddgs>=9.4.3",
     "streamlit>=1.32.0",
     "tavily-python>=0.7.10",
+    "mem0ai>=0.1.116",
+    "psycopg2>=2.9.10",
 ]
 
 [tool.ruff]
