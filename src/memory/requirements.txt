@@ -1,0 +1,16 @@
+# Vector Memory System Requirements
+# Core database dependencies
+psycopg2>=2.9.10
+numpy>=1.21.0
+
+# Optional: For production use with better performance
+# psycopg2-binary>=2.9.10  # Alternative to psycopg2
+
+# Optional: For advanced embedding models
+# openai>=1.0.0  # For OpenAI embeddings
+# sentence-transformers>=2.2.0  # For local embeddings
+# transformers>=4.20.0  # For Hugging Face models
+
+# Optional: For better logging and monitoring
+# structlog>=21.0.0
+# prometheus-client>=0.14.0
