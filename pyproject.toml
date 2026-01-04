@@ -17,6 +17,9 @@ dependencies = [
     "tavily-python>=0.7.10",
     "mem0ai>=0.1.116",
     "psycopg2-binary",
+    "pyright>=1.1.407",
+    "httpx>=0.27.0",
+    "pytest>=8.0.0",
 ]
 
 [tool.ruff]
@@ -55,3 +58,7 @@ convention = "google"  # 또는 "numpy", "pep257"
 # 형 주석 관련 설정 (예: mypy 스타일)
 [lint.mccabe]
 max-complexity = 10
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests_unit"]

@@ -1,30 +1,28 @@
-from dataclasses import dataclass, field
-from typing import Optional
+from __future__ import annotations
+
 import json
+from dataclasses import dataclass, field
+from typing import ClassVar
 
 
 @dataclass
 class SearchResult:
-    """Data class for single search results"""
-
     title: str
     url: str
     snippet: str
     source: str = "web"
-    notes: Optional[str] = None
-    published_time: Optional[str] = None
+    notes: str | None = None
+    published_time: str | None = None
     sid: int = field(init=False)
 
-    # Class variable to track the next available sid
-    _next_sid: int = field(default=0, init=False, repr=False)
+    _next_sid: ClassVar[int] = 0
 
-    def __post_init__(self):
-        # Auto-assign sid if not provided
+    def __post_init__(self) -> None:
         SearchResult._next_sid += 1
         self.sid = SearchResult._next_sid
 
-    def __str__(self):
-        msg = f"=====\n"
+    def __str__(self) -> str:
+        msg = "=====\n"
         msg += f"- Title: {self.title}\n"
         msg += f"- URL: {self.url}\n"
         msg += f"- Content: {self.snippet}"
@@ -35,11 +33,11 @@ class SearchResult:
         msg += "\n"
         return msg
 
-    def to_markdown(self):
+    def to_markdown(self) -> str:
         clean_title = self.title.replace("(", "[").replace(")", "]")
         return f"[^{self.sid}]: [{clean_title}]({self.url})"
 
-    def to_json(self):
+    def to_json(self) -> str:
         return json.dumps(
             {
                 "title": self.title,
@@ -50,7 +48,7 @@ class SearchResult:
         )
 
     @classmethod
-    def from_json(cls, json_str):
+    def from_json(cls, json_str: str) -> SearchResult:
         data = json.loads(json_str)
         return cls(
             title=data["title"],
@@ -59,23 +57,21 @@ class SearchResult:
         )
 
     @classmethod
-    def reset_sid_counter(cls):
-        """Reset the sid counter to 1 (useful for testing)"""
+    def reset_sid_counter(cls) -> None:
         cls._next_sid = 1
 
 
 @dataclass
 class QueryResult:
-    """Data class for query results from multiple SearchResults"""
-
     query: str
     results: list[SearchResult]
+    source: str = "web"
 
-    def __post_init__(self):
-        self.query_summary = self._get_summary(self.query, self.results)
-        self.citations = ' '.join([f"[^{item.sid}]" for item in self.results])
+    def __post_init__(self) -> None:
+        self.citations = " ".join([f"[^{item.sid}]" for item in self.results])
         self.links = "\n".join([item.to_markdown() for item in self.results])
+        if self.results:
+            self.source = self.results[0].source
 
-    def __str__(self):
-        return f"**{self.query} ({self.source}):** {self.query_summary} {self.citations}"
-
+    def __str__(self) -> str:
+        return f"**{self.query} ({self.source}):** {self.citations}"

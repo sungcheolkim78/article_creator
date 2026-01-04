@@ -1,5 +1,11 @@
-"""
-Web search module for article creation.
+from websearch.optimized_searcher import (
+    OptimizedSearcher,
+    create_optimized_searcher,
+    quick_search,
+)
 
-This module contains web search tools and utilities.
-"""
+__all__ = [
+    "OptimizedSearcher",
+    "create_optimized_searcher",
+    "quick_search",
+]

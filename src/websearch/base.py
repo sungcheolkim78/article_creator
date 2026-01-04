@@ -1,8 +1,17 @@
-import dspy
-from websearch.schema import SearchResult
-import time
+import logging
 import re
-from typing import Literal
+import time
+from typing import ClassVar, Literal
+
+import dspy
+
+from websearch.schema import SearchResult
+
+logger = logging.getLogger(__name__)
+
+# Compiled regex patterns for citation normalization
+_CITATION_PATTERN = re.compile(r"\[(\d+)\]")
+_TEMPLATE_CITATION_PATTERN = re.compile(r"\[\^\{(\d+)\}\]")
 
 
 class Category(dspy.Signature):
@@ -25,28 +34,38 @@ class Summary(dspy.Signature):
 
 
 class BaseSearcher(dspy.Module):
-    def __init__(self, engine: str = "tavily", k: int = 3, verbose: bool = False):
+    _name: ClassVar[str] = "BaseSearcher"
+
+    def __init__(
+        self, engine: str = "tavily", k: int = 3, verbose: bool = False
+    ) -> None:
+        super().__init__()
         self.engine = engine
         self.k = k
         self.verbose = verbose
-        self._search_results = {}
-        self._name = "BaseSearcher"
+        self._search_results: dict[str, SearchResult] = {}
 
-        self.category = dspy.Predict(Category)
-        self.summary = dspy.Predict(Summary)
+        self._categorizer = dspy.Predict(Category)
+        self._summarizer = dspy.Predict(Summary)
 
-    def forward(self, query: str) -> str:
+    def forward(self, query: str) -> dspy.Prediction:
         start_time = time.time()
-        category = self.category(text=query).category
+        category = self._categorizer(text=query).category
 
         self._setup_tools(category, self.engine)
 
         search_summary, sources, proc_info = self._search(query)
-        markdown = search_summary + f"\n## Sources\n\n" + sources + "\n"
+        markdown = f"{search_summary}\n## Sources\n\n{sources}\n"
 
         self.execution_time = time.time() - start_time
-        print(
-            f"{self._name}|{category}|{query}|{proc_info}|{self.engine}|{self.execution_time:.2f}s"
+        logger.info(
+            "%s|%s|%s|%s|%s|%.2fs",
+            self._name,
+            category,
+            query,
+            proc_info,
+            self.engine,
+            self.execution_time,
         )
 
         return dspy.Prediction(
@@ -56,29 +75,37 @@ class BaseSearcher(dspy.Module):
             markdown=markdown,
         )
 
-    def _setup_tools(self, category: str, engine: str):
+    def _setup_tools(self, category: str, engine: str) -> None:
         raise NotImplementedError("Subclasses must implement this method")
 
     def _search(self, query: str) -> tuple[str, str, str]:
         raise NotImplementedError("Subclasses must implement this method")
 
-    def _add_search_results(self, results: list[SearchResult]):
+    def _add_search_results(self, results: list[SearchResult]) -> None:
         for result in results:
             if result.url not in self._search_results:
                 self._search_results[result.url] = result
 
     def _get_summary(self, query: str, results: list[SearchResult]) -> str:
-        query_summary = ""
-        for result in results:
-            query_summary += f"- [^{result.sid}] Title: {result.title}\nSnippet: {result.snippet}\n"
+        if not results:
+            return "No results found."
 
-        summary = self.summary(query=query, results=query_summary).summary
-        
-        # Apply regex to change [number] to [^number] for any digit
-        summary = re.sub(r'\[(\d+)\]', r'[^\1]', summary)
-        summary = re.sub(r'\[\^\{(\d+)\}\]', r'[^\1]', summary)
-        
-        return summary
+        formatted_results = "\n".join(
+            f"- [^{r.sid}] Title: {r.title}\nSnippet: {r.snippet}" for r in results
+        )
+
+        try:
+            summary = self._summarizer(query=query, results=formatted_results).summary
+        except Exception as e:
+            logger.error("Summary generation failed: %s", e)
+            return "Summary generation failed."
+
+        return self._normalize_citations(summary)
+
+    def _normalize_citations(self, text: str) -> str:
+        text = _CITATION_PATTERN.sub(r"[^\1]", text)
+        text = _TEMPLATE_CITATION_PATTERN.sub(r"[^\1]", text)
+        return text
 
     @property
     def search_results(self) -> list[SearchResult]:
