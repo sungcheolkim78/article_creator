@@ -81,6 +81,18 @@ class BaseSearcher(dspy.Module):
     def _search(self, query: str) -> tuple[str, str, str]:
         raise NotImplementedError("Subclasses must implement this method")
 
+    def _load_search_functions(self, engine: str) -> tuple[callable, callable]:  # type: ignore[valid-type]
+        if engine == "tavily":
+            from websearch.tavily import search_news, search_web
+        elif engine == "ddg":
+            from websearch.ddg import search_news, search_web
+        elif engine == "brave":
+            from websearch.brave import search_news, search_web
+        else:
+            msg = f"Invalid engine: {engine}"
+            raise ValueError(msg)
+        return search_web, search_news
+
     def _add_search_results(self, results: list[SearchResult]) -> None:
         for result in results:
             if result.url not in self._search_results:

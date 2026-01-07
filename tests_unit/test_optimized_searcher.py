@@ -63,12 +63,12 @@ class TestOptimizedSearcher:
         urls = {r.url for r in searcher.search_results}
         assert urls == {"https://a.com", "https://b.com", "https://c.com"}
 
-    def test_fix_citations(self) -> None:
+    def test_normalize_citations(self) -> None:
         searcher = OptimizedSearcher(engine="ddg", use_async=False)
 
-        assert searcher._fix_citations("[1]") == "[^1]"
-        assert searcher._fix_citations("[^{2}]") == "[^2]"
-        assert searcher._fix_citations("Text [1] and [2]") == "Text [^1] and [^2]"
+        assert searcher._normalize_citations("[1]") == "[^1]"
+        assert searcher._normalize_citations("[^{2}]") == "[^2]"
+        assert searcher._normalize_citations("Text [1] and [2]") == "Text [^1] and [^2]"
 
     @patch("websearch.optimized_searcher.OptimizedSearcher._search_parallel_sync")
     @patch("websearch.optimized_searcher.OptimizedSearcher._generate_optimized_queries")

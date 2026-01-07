@@ -1,13 +1,12 @@
 from core.react_article import ArticleReACTAgent
-from websearch.bravesearch import OptimizedBraveSearch
-from websearch.ddgsearch import OptimizedDDGSearch
+from websearch.optimized_searcher import create_optimized_searcher
 
 from utils.llm import llm_setup
 
 
 def test_article_react_agent():
     llm_setup("openai/gpt-4o-mini")
-    search_tool = OptimizedDDGSearch()
+    search_tool = create_optimized_searcher(engine="ddg")
 
     a = ArticleReACTAgent(search_tool=search_tool)
 

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Simple test script for BraveSearchTool (basic functionality only)."""
+"""Test script for Brave search functionality."""
 
-from websearch.bravesearch import BraveSearchTool, OptimizedBraveSearch
+from websearch.brave import search_news, search_web, AsyncBraveSearch
 from websearch.schema import SearchResult
-from typing import List
+from websearch.optimized_searcher import create_optimized_searcher
 from dotenv import load_dotenv
 from utils.llm import llm_setup, check_environment_cli
 
@@ -12,7 +12,7 @@ llm_setup("openai/gpt-4o-mini")
 check_environment_cli("openai/gpt-4o-mini", "brave")
 
 
-def show_search_results(qtype: str, query: str, results: List[SearchResult]):
+def show_search_results(qtype: str, query: str, results: list[SearchResult]):
     print(f"{qtype} Query: {query}")
     print(f"Found {len(results)} results:")
 
@@ -20,76 +20,68 @@ def show_search_results(qtype: str, query: str, results: List[SearchResult]):
         print(f"\n--- Result {i} ---")
         print(f"Title: {result.title}")
         print(f"URL: {result.url}")
-        print(f"Snippet: {result.snippet}")
-        print(f"Extra Snippets: {result.extra_snippets}")
+        print(f"Snippet: {result.snippet[:200]}...")
         if result.published_time:
             print(f"Published: {result.published_time}")
 
 
 def test_basic_search():
-    """Test basic search functionality"""
-    print("Testing basic BraveSearchTool...")
+    """Test basic search functionality using module-level functions."""
+    print("Testing basic Brave search...")
 
-    # Initialize the search tool
-    search_tool = BraveSearchTool(k=3)
-
-    # Perform a simple search
     query = "Python programming"
-    results = search_tool.search(query)
-    show_search_results("Basic", query, results)
+    results = search_web(query, k=3)
+    # Results are JSON strings, convert to SearchResult
+    search_results = [SearchResult.from_json(r) for r in results]
+    show_search_results("Basic", query, search_results)
 
 
 def test_news_search():
-    """Test news search functionality"""
+    """Test news search functionality."""
     print("\n" + "=" * 50)
     print("Testing news search...")
 
-    # Initialize the search tool
-    search_tool = BraveSearchTool(k=2)
-
-    # Perform a news search
     query = "artificial intelligence"
-    results = search_tool.search_news(query)
-
-    show_search_results("News", query, results)
+    results = search_news(query, k=3)
+    search_results = [SearchResult.from_json(r) for r in results]
+    show_search_results("News", query, search_results)
 
 
 def test_optimized_search():
-    """Test optimized search functionality"""
+    """Test optimized search functionality using OptimizedSearcher."""
     print("\n" + "=" * 50)
     print("Testing optimized search...")
 
-    # Initialize the search tool
-    search_tool = OptimizedBraveSearch(k=2)
+    searcher = create_optimized_searcher(engine="brave", k=3)
+    query = "artificial intelligence trends 2024"
+    result = searcher(query)
 
-    # Perform an optimized search
-    query = "artificial intelligence"
-    results = search_tool.optimized_search(query)
+    print(f"Query: {query}")
+    print(f"Found {len(result.sources)} results")
+    print(f"Execution time: {result.execution_time:.2f}s")
+    print(f"\nSummary:\n{result.summary[:500]}...")
 
-    show_search_results("Optimized", query, results)
 
-
-def test_filtered_search():
-    """Test search with filters"""
+async def test_async_search():
+    """Test async search functionality."""
     print("\n" + "=" * 50)
-    print("Testing filtered search...")
+    print("Testing async search...")
 
-    # Initialize the optimized search tool (which has search_with_filters)
-    search_tool = OptimizedBraveSearch(k=2)
-
-    # Perform a filtered search
-    query = "machine learning"
-    results = search_tool.search_with_filters(
-        query=query,
-        domain_filter="wikipedia.org",
-        date_filter="2024-01-01",
-    )
-
-    show_search_results("Filtered", query, results)
+    client = AsyncBraveSearch()
+    try:
+        query = "machine learning"
+        results = await client.search(query, k=3)
+        show_search_results("Async", query, results)
+    finally:
+        await client.close()
 
 
 if __name__ == "__main__":
     test_basic_search()
     test_news_search()
     test_optimized_search()
-    test_filtered_search()
+
+    # Run async test
+    import asyncio
+
+    asyncio.run(test_async_search())

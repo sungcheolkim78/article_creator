@@ -1,22 +1,28 @@
-from ddgs import DDGS, exceptions as ddgs_exceptions
-from typing import List
-from websearch.schema import SearchResult
+from __future__ import annotations
+
 import logging
+
+from ddgs import DDGS
+from ddgs import exceptions as ddgs_exceptions
 from dspy.clients.cache import request_cache
 
-logger = logging.getLogger("ddg_search")
+from websearch.schema import SearchResult
+
+logger = logging.getLogger(__name__)
 
 logging.getLogger("primp").setLevel(logging.WARNING)
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("openai").setLevel(logging.WARNING)
 
 
-def get_news(query: str, k: int, options: dict = {}) -> List[SearchResult]:
-    # Use DuckDuckGo news search
+def _get_news(query: str, k: int, options: dict | None = None) -> list[SearchResult]:
+    if options is None:
+        options = {}
+
     try:
         results = DDGS().news(query, max_results=k, **options)
     except ddgs_exceptions.DDGSException as e:
-        logger.error(f"Error searching news: {e}")
+        logger.error("Error searching news: %s", e)
         results = []
 
     return [
@@ -24,20 +30,22 @@ def get_news(query: str, k: int, options: dict = {}) -> List[SearchResult]:
             title=item.get("title", ""),
             url=item.get("url", ""),
             snippet=item.get("body", ""),
-            published_time=item.get("date", None),
-            notes=item.get("source", None),
+            published_time=item.get("date"),
+            notes=item.get("source"),
             source="news",
         )
         for item in results
     ]
 
 
-def get_text(query: str, k: int, options: dict = {}) -> List[SearchResult]:
-    # Use DuckDuckGo search
+def _get_text(query: str, k: int, options: dict | None = None) -> list[SearchResult]:
+    if options is None:
+        options = {}
+
     try:
         results = DDGS().text(query, max_results=k, **options)
     except ddgs_exceptions.DDGSException as e:
-        logger.error(f"Error searching text: {e}")
+        logger.error("Error searching text: %s", e)
         results = []
 
     return [
@@ -54,10 +62,27 @@ def get_text(query: str, k: int, options: dict = {}) -> List[SearchResult]:
 
 
 @request_cache()
-def search_news(query: str, k: int = 3) -> List[SearchResult]:
-    return [item.to_json() for item in get_news(query, k=k)]
+def search_news(query: str, k: int = 3) -> list[str]:
+    return [item.to_json() for item in _get_news(query, k=k)]
 
 
 @request_cache()
-def search_web(query: str, k: int = 3) -> List[SearchResult]:
-    return [item.to_json() for item in get_text(query, k=k)]
+def search_web(query: str, k: int = 3) -> list[str]:
+    return [item.to_json() for item in _get_text(query, k=k)]
+
+
+class AsyncDDGSearch:
+    async def search(
+        self,
+        query: str,
+        k: int = 3,
+        source: str = "web",
+    ) -> list[SearchResult]:
+        import asyncio
+
+        if source == "news":
+            return await asyncio.to_thread(_get_news, query, k)
+        return await asyncio.to_thread(_get_text, query, k)
+
+    async def close(self) -> None:
+        pass

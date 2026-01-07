@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Simple test script for BraveSearchTool (basic functionality only)."""
 
-from websearch.wikisearch import WikiReACTSearcher
+from websearch.wiki import WikiReACTSearcher
 from dotenv import load_dotenv
 from utils.llm import llm_setup, check_environment_cli
 

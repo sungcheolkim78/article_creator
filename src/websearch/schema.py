@@ -62,6 +62,15 @@ class SearchResult:
 
 
 @dataclass
+class AsyncSearchConfig:
+    """Configuration for async search clients."""
+
+    timeout: float = 10.0
+    max_connections: int = 10
+    max_keepalive_connections: int = 5
+
+
+@dataclass
 class QueryResult:
     query: str
     results: list[SearchResult]

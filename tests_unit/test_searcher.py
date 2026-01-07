@@ -6,7 +6,7 @@ import click
 @click.command()
 @click.option("--topic", type=str, default="Overview on Rust programming language")
 @click.option("--model", type=str, default="openai/gpt-4o-mini")
-@click.option("--mode", type=str, default="react")
+@click.option("--mode", type=str, default="query")
 @click.option("--engine", type=str, default="tavily")
 @click.option("--verbose", type=bool, default=True)
 def test_basic_search(topic, model, mode, engine, verbose):

@@ -3,7 +3,7 @@
 Simple test script for DDGSearchTool (basic functionality only)
 """
 
-from websearch.tavilysearch import search_news, search_web
+from websearch.tavily import search_news, search_web
 from websearch.schema import SearchResult
 from typing import List
 import dspy

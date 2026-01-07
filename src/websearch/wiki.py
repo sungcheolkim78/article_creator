@@ -1,10 +1,14 @@
-import dspy
+from __future__ import annotations
+
 import logging
-import click
+
+import dspy
+
+logger = logging.getLogger(__name__)
 
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
-DOCS = {}
+DOCS: dict[str, str] = {}
 
 
 def search(query: str, k: int) -> list[str]:
@@ -15,9 +19,7 @@ def search(query: str, k: int) -> list[str]:
 
     for result in results:
         title, text = result.split(" | ", 1)
-        title = title.replace(
-            "&amp;", "&"
-        )  # Replace &amp; with & to avoid HTML parsing errors
+        title = title.replace("&amp;", "&")
         DOCS[title] = text
 
     return results
@@ -25,15 +27,16 @@ def search(query: str, k: int) -> list[str]:
 
 def search_wikipedia(query: str) -> list[str]:
     """Returns top-5 results and then the titles of the top-5 to top-30 results."""
-
-    topK = search(query, 30)
-    titles, topK = [f"`{x.split(' | ')[0]}`" for x in topK[5:30]], topK[:5]
-    return topK + [f"Other retrieved pages have titles: {', '.join(titles)}."]
+    top_results = search(query, 30)
+    titles = [f"`{x.split(' | ')[0]}`" for x in top_results[5:30]]
+    return [
+        *top_results[:5],
+        f"Other retrieved pages have titles: {', '.join(titles)}.",
+    ]
 
 
 def lookup_wikipedia(title: str) -> str:
     """Returns the text of the Wikipedia page, if it exists."""
-
     if title in DOCS:
         return DOCS[title]
 
@@ -44,7 +47,7 @@ def lookup_wikipedia(title: str) -> str:
 
 
 class WikiReACTSearcher(dspy.Module):
-    def __init__(self):
+    def __init__(self) -> None:
         instructions = (
             "Find all Wikipedia titles relevant to verifying (or refuting) the claim."
         )
@@ -53,22 +56,17 @@ class WikiReACTSearcher(dspy.Module):
             signature, tools=[search_wikipedia, lookup_wikipedia], max_iters=20
         )
 
-    def forward(self, claim: str) -> list[str]:
-        # Replace & with &amp; to avoid HTML parsing errors
+    def forward(self, claim: str) -> dspy.Prediction:
         claim = claim.replace("&", "&amp;")
-
         result = self.react(claim=claim)
 
-        for k, v in result.trajectory.items():
-            print(k)
-            print(v)
-            print()
-
-        print(result.reasoning)
-
-        print("-" * 100)
-        for title in result.titles:
-            print(click.style(f"## {title}", fg="green"))
-            print(lookup_wikipedia(title))
+        if logger.isEnabledFor(logging.DEBUG):
+            for k, v in result.trajectory.items():
+                logger.debug("%s: %s", k, v)
+            logger.debug("Reasoning: %s", result.reasoning)
+            logger.debug("-" * 100)
+            for title in result.titles:
+                logger.debug("## %s", title)
+                logger.debug("%s", lookup_wikipedia(title))
 
         return dspy.Prediction(titles=result.titles)

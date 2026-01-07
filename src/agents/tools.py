@@ -1,40 +1,53 @@
-import json
-import time
-from typing import Callable
-from functools import wraps
+from __future__ import annotations
 
-from agents.searcher import ReACTSearcher, QuerySearcher
-from dspy.clients.cache import request_cache
+import json
+import logging
+import time
+from functools import wraps
+from typing import TYPE_CHECKING, Any
+
 import dspy
 
+if TYPE_CHECKING:
+    from collections.abc import Callable
+from dspy.clients.cache import request_cache
 
-def execution_time(func):
+from agents.searcher import QuerySearcher, ReACTSearcher
+
+logger = logging.getLogger(__name__)
+
+
+def execution_time(func: Callable) -> Callable:
     """Decorator to calculate and store execution time of functions."""
+
     @wraps(func)
-    def wrapper(*args, **kwargs):
+    def wrapper(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
         start_time = time.time()
         result = func(*args, **kwargs)
         end_time = time.time()
         execution_time_seconds = end_time - start_time
-        
+
         # Store execution time in the instance if it's a method
-        if args and hasattr(args[0], 'execution_times'):
-            if not hasattr(args[0], 'execution_times'):
-                args[0].execution_times = {}
+        if args and hasattr(args[0], "execution_times"):
             if func.__name__ not in args[0].execution_times:
-                args[0].execution_times[func.__name__] = 0
+                args[0].execution_times[func.__name__] = 0.0
             args[0].execution_times[func.__name__] += execution_time_seconds
-        
-        # Print execution time for debugging
-        print(f"⏱️  {func.__name__} executed in {execution_time_seconds:.2f} seconds")
-        
+
+        logger.debug(
+            "%s executed in %.2f seconds", func.__name__, execution_time_seconds
+        )
+
         return result
+
     return wrapper
 
 
 class MemoryTools:
     """Article Generation Tools with Memory."""
-    def __init__(self, mode: str = "query", engine: str = "tavily", verbose: bool = False):
+
+    def __init__(
+        self, mode: str = "query", engine: str = "tavily", verbose: bool = False
+    ) -> None:
         self.memory_content = ""
         self.search_summary = ""
         self.source_content = ""
@@ -59,7 +72,7 @@ class MemoryTools:
     @execution_time
     def search_web(self, query: str) -> str:
         """Search the web for the given query, and return the search summary."""
-        print("... Use search_web tool ...")
+        logger.debug("Using search_web tool")
 
         if self.mode == "react":
             searcher = ReACTSearcher(engine=self.engine, verbose=self.verbose)
@@ -70,23 +83,25 @@ class MemoryTools:
 
         output = searcher(query)
 
-        self.search_results.append(output.summary)
-        self.sources.extend(output.sources)
+        self.search_results.append(output.summary)  # type: ignore[attr-defined]
+        self.sources.extend(output.sources)  # type: ignore[attr-defined]
         self.search_time += searcher.execution_time
 
         return json.dumps(
             {
                 "query": query,
-                "summary": output.summary,
+                "summary": output.summary,  # type: ignore[attr-defined]
             }
         )
 
     @execution_time
     def analyze(self, question: str) -> str:
         """Generate a comprehensive analysis of the question with internal web search results."""
-        print("... Use analyze tool ...")
+        logger.debug("Using analyze tool")
 
-        output = self.analyzer(question=question, web_search_results=self.search_results).analysis_content
+        output: str = self.analyzer(
+            question=question, web_search_results=self.search_results
+        ).analysis_content  # type: ignore[attr-defined]
         output_str = f"## Analysis of |{question}|\n\n{output}"
         self.analysis_results.append(output_str)
         return output_str
@@ -94,42 +109,44 @@ class MemoryTools:
     @execution_time
     def outline(self, topic: str, current_outline: str) -> str:
         """Given a topic, previous outline, and research findings, generate a comprehensive outline for an article."""
-        print("... Use outline tool ...")
+        logger.debug("Using outline tool")
 
         outcome = self.outliner(
             topic=topic, current_outline=current_outline, content=self.get_findings()
         )
 
         self.topic = topic
-        self.title = outcome.title
-        self.sections = outcome.sections
-        self.section_subheadings = outcome.section_subheadings
+        self.title: str = outcome.title  # type: ignore[attr-defined]
+        self.sections: list[str] = outcome.sections  # type: ignore[attr-defined]
+        self.section_subheadings: dict[str, list[str]] = outcome.section_subheadings  # type: ignore[attr-defined]
 
         return self.outline_str
 
     @execution_time
     def research_gap(self, outline_str: str) -> str:
         """Generate a research gap for the given outline and research findings."""
-        print("... Use research_gap tool ...")
+        logger.debug("Using research_gap tool")
 
-        output =  self.gap_researcher(findings=self.get_findings(), outline=outline_str).infomation_gap
+        output: str = self.gap_researcher(
+            findings=self.get_findings(), outline=outline_str
+        ).infomation_gap  # type: ignore[attr-defined]
         self.gap_results.append(output)
         return output
 
     @execution_time
-    def plan(self, topic: str, research_gap: str) -> str:
+    def plan(self, topic: str, research_gap: str) -> dspy.Prediction:
         """Generate a research plan for the given topic and research gap."""
-        print("... Use plan tool ...")
+        logger.debug("Using plan tool")
 
         output = self.planner(
-            topic=topic, 
-            current_outline=self.outline_str, 
-            research_gaps=research_gap, 
-            available_tools=self.available_tools, 
-            memory_context=self.get_findings()
+            topic=topic,
+            current_outline=self.outline_str,
+            research_gaps=research_gap,
+            available_tools=self.available_tools,
+            memory_context=self.get_findings(),
         )
-        self.research_strategy = output.research_strategy
-        self.action_plan = output.action_plan
+        self.research_strategy = output.research_strategy  # type: ignore[attr-defined]
+        self.action_plan = output.action_plan  # type: ignore[attr-defined]
         return output
 
     def get_findings(self, full_report: bool = False) -> str:
@@ -142,24 +159,26 @@ class MemoryTools:
 
     def get_sources(self) -> str:
         """Get the sources of the search results."""
-        content = '\n'.join([item.to_markdown() for item in self.sources])
+        content = "\n".join([item.to_markdown() for item in self.sources])
         return content
 
     @property
     def outline_str(self) -> str:
-        outline_str = json.dumps({
-            "title": self.title,
-            "sections": self.sections,
-            "section_subheadings": self.section_subheadings,
-        })
+        outline_str = json.dumps(
+            {
+                "title": self.title,
+                "sections": self.sections,
+                "section_subheadings": self.section_subheadings,
+            }
+        )
         return outline_str
 
     @property
     def available_tools(self) -> str:
         available_tools = "The available tools are:"
-        available_tools += "\ntool_search_web: " + self.search_web.__doc__
-        available_tools += "\ntool_outline: " + self.outline.__doc__
-        available_tools += "\ntool_analyze: " + self.analyze.__doc__
+        available_tools += f"\ntool_search_web: {self.search_web.__doc__ or ''}"
+        available_tools += f"\ntool_outline: {self.outline.__doc__ or ''}"
+        available_tools += f"\ntool_analyze: {self.analyze.__doc__ or ''}"
         return available_tools
 
     def tool_list(self) -> list[Callable]:
@@ -167,8 +186,8 @@ class MemoryTools:
 
     def report(self) -> str:
         report = "## Execution Times\n"
-        for func_name, time in self.execution_times.items():
-            report += f"- {func_name}: {time:.2f} seconds\n"
+        for func_name, exec_time in self.execution_times.items():
+            report += f"- {func_name}: {exec_time:.2f} seconds\n"
         report += f"- Total search time: {self.search_time:.2f} seconds\n"
         report += "\n## Finding Statistics\n"
         report += f"- Total findings: {len(self.search_results)}\n"
@@ -183,7 +202,9 @@ class AnalyzedInfo(dspy.Signature):
 
     question: str = dspy.InputField()
     web_search_results: str = dspy.InputField()
-    analysis_content: str = dspy.OutputField(desc="one or two paragraphs of analysis including citations. citations should be in markdown format such as [^1], [^2], etc.")
+    analysis_content: str = dspy.OutputField(
+        desc="one or two paragraphs of analysis including citations. citations should be in markdown format such as [^1], [^2], etc."
+    )
 
 
 class ArticleOutline(dspy.Signature):
@@ -233,4 +254,3 @@ class ArticlePlan(dspy.Signature):
     action_plan: str = dspy.OutputField(
         desc="Specific actions to take with their parameters"
     )
-

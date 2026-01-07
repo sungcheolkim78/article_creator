@@ -1,21 +1,14 @@
 #!/usr/bin/env python3
-"""
-Simple test script for DDGSearchTool (basic functionality only)
-"""
+"""Test script for DuckDuckGo search functionality."""
 
-from websearch.ddgsearch import (
-    DDGSearchTool,
-    OptimizedDDGSearch,
-    DDGReACTSearcher,
-    tool_search_web,
-)
+from websearch.ddg import search_news, search_web
 from websearch.schema import SearchResult
-from typing import List
+from websearch.optimized_searcher import create_optimized_searcher
 import dspy
 from utils.llm import llm_setup
 
 
-def show_search_results(qtype: str, query: str, results: List[SearchResult]):
+def show_search_results(qtype: str, query: str, results: list[SearchResult]):
     print(f"{qtype} Query: {query}")
     print(f"Found {len(results)} results:")
     for result in results:
@@ -23,94 +16,48 @@ def show_search_results(qtype: str, query: str, results: List[SearchResult]):
 
 
 def test_basic_search():
-    """Test basic search functionality"""
-    print("Testing basic DDGSearchTool...")
+    """Test basic search functionality using module-level functions."""
+    print("Testing basic DDG search...")
 
-    # Initialize the search tool
-    search_tool = DDGSearchTool(k=3)
-
-    # Perform a simple search
     query = "Python programming"
-    results = search_tool.search(query)
-    show_search_results("Basic", query, results)
+    results = search_web(query, k=3)
+    # Results are JSON strings, convert to SearchResult
+    search_results = [SearchResult.from_json(r) for r in results]
+    show_search_results("Basic", query, search_results)
 
 
 def test_news_search():
-    """Test news search functionality"""
+    """Test news search functionality."""
     print("\n" + "=" * 50)
     print("Testing news search...")
 
-    # Initialize the search tool
-    search_tool = DDGSearchTool(k=3)
-
-    # Perform a news search
     query = "Tariff of 2025"
-    results = search_tool.search_news(query)
-
-    show_search_results("News", query, results)
+    results = search_news(query, k=3)
+    search_results = [SearchResult.from_json(r) for r in results]
+    show_search_results("News", query, search_results)
 
 
 def test_optimized_search():
-    """Test optimized search functionality"""
+    """Test optimized search functionality using OptimizedSearcher."""
     print("\n" + "=" * 50)
-    print("Testing optimized search...")
+    print("Testing optimized search with DDG...")
 
-    # Initialize the search tool
-    search_tool = OptimizedDDGSearch(k=3)
-
-    # Perform an optimized search
+    searcher = create_optimized_searcher(engine="ddg", k=3, use_async=False)
     query = "Trends of S&P 500 Index"
-    results = search_tool.optimized_search(query)
+    result = searcher(query)
 
-    show_search_results("Optimized", query, results)
-
-
-def test_filtered_search():
-    """Test search with filters"""
-    print("\n" + "=" * 50)
-    print("Testing filtered search...")
-
-    # Initialize the optimized search tool (which has search_with_filters)
-    search_tool = OptimizedDDGSearch(k=3)
-
-    # Perform a filtered search
-    query = "machine learning"
-    results = search_tool.search_with_filters(
-        query=query,
-        site_filter="wikipedia.org",
-    )
-
-    show_search_results("Filtered", query, results)
-
-
-def test_ddg_react_searcher():
-    """Test DDGReACTSearcher"""
-    print("\n" + "=" * 50)
-    print("Testing DDGReACTSearcher...")
-
-    query = "Lovable AI"
-    searcher = DDGReACTSearcher(verbose=True)
-    results = searcher(query)
-
-    show_search_results("DDGReACTSearcher", query, results.search_results)
-    print(results.reasoning)
-    print(results.summary)
+    print(f"Query: {query}")
+    print(f"Found {len(result.sources)} results")
+    print(f"Execution time: {result.execution_time:.2f}s")
+    print(f"\nSummary:\n{result.summary[:500]}...")
 
 
 if __name__ == "__main__":
-    # llm_setup("openrouter/x-ai/grok-3-mini")
-    # llm_setup("openrouter/google/gemini-2.5-flash-lite")
-    # llm_setup("openai/gpt-4o-mini")
     llm_setup("gemini/gemini-2.5-flash-lite")
     dspy.configure_cache(
         enable_disk_cache=True,
         enable_memory_cache=True,
     )
-    # test_basic_search()
-    # test_news_search()
-    # test_optimized_search()
-    # test_filtered_search()
-    # test_ddg_react_searcher()
-
-    txt = tool_search_web("Lovable AI", verbose=False)
-    print(txt)
+    test_basic_search()
+    test_news_search()
+    test_optimized_search()
